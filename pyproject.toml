@@ -1,6 +1,6 @@
 [project]
 name = "wbtn"
-version = "0.0.0a1"
+version = "0.0.0a2"
 description = "The WBTN open file format"
 readme = "README.md"
 authors = [
