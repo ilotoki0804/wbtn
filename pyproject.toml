@@ -1,0 +1,32 @@
+[project]
+name = "wbtn"
+version = "0.0.0a1"
+description = "The WBTN open file format"
+readme = "README.md"
+authors = [
+    { name = "ilotoki0804", email = "ilotoki0804@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.coverage.report]
+exclude_also = [
+    "unreachable",
+    "case other:",
+    "assert False",
+    "if (typing\\.)?TYPE_CHECKING:",
+    "@(typing\\.)?deprecated",
+    "@overload",
+    'if __name__ == "__main__":'
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "UP", "W"]
+ignore = ["E501", "E402", "S101"]
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
