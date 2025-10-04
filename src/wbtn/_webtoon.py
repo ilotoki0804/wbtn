@@ -302,7 +302,7 @@ class Webtoon:
         return self._json_encoder.encode(data)
 
     @contextmanager
-    def execute(self, query: typing.LiteralString, params: typing.Any) -> typing.Iterator[sqlite3.Cursor]:
+    def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> typing.Iterator[sqlite3.Cursor]:
         with self.connection.cursor() as cur:
             yield cur.execute(query, params)
 
