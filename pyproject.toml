@@ -20,7 +20,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fieldenum>=0.2.0",
+]
 
 [tool.coverage.report]
 exclude_also = [
@@ -31,6 +33,13 @@ exclude_also = [
     "@(typing\\.)?deprecated",
     "@overload",
     'if __name__ == "__main__":'
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.30.1",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
 ]
 
 [project.urls]
