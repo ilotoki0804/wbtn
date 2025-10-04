@@ -1,0 +1,461 @@
+from __future__ import annotations
+
+from contextlib import contextmanager, nullcontext
+import datetime
+import json
+from pathlib import Path
+import sqlite3
+import typing
+
+from fieldenum import Variant, fieldenum
+
+from ._base import JournalModes, ConnectionMode, JsonType, PrimitiveType, EpisodeState, EPISODE_STATE, ConversionIncludingRawType, ConversionType
+from ._webtoon_connection import WebtoonConnectionManager
+
+if typing.TYPE_CHECKING:
+    from _typeshed import StrOrBytesPath as Pathlike
+
+_NOTSET = object()
+GET_VALUE: typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
+T = typing.TypeVar("T")
+
+
+class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
+    def __init__(self, webtoon: Webtoon) -> None:
+        self.webtoon = webtoon
+        self.default_conversion: ConversionIncludingRawType = None
+
+    def __iter__(self) -> typing.Iterator[str]:
+        with self.webtoon.connection.cursor() as cur:
+            for result, in cur.execute("SELECT name FROM info"):
+                yield result
+
+    def __len__(self) -> int:
+        with self.webtoon.connection.cursor() as cur:
+            count, = cur.execute("SELECT count() FROM info").fetchone()
+        return count
+
+    def __getitem__(self, key: str) -> typing.Any:
+        return self.get(key, _NOTSET)
+
+    def __setitem__(self, key: str, value: typing.Any) -> None:
+        return self.set(key, value, conversion=self.default_conversion)
+
+    def __delitem__(self, key: str) -> None:
+        return self.delete(key)
+
+    def pop(self, key: str, default=_NOTSET, delete_system: bool = False) -> typing.Any:
+        if not delete_system:
+            self._protect_system_key(key)
+        with self.webtoon.connection.cursor() as cur:
+            result = cur.execute(f"DELETE FROM info WHERE name == ? RETURNING conversion, {GET_VALUE}", (key,)).fetchone()
+        if result is None:
+            if default is _NOTSET:
+                raise KeyError(key)
+            else:
+                return default
+        conversion, value = result
+        value = self.webtoon._load_conversion_value(conversion, value)
+        return value
+
+    def items(self) -> typing.Iterator[tuple[str, typing.Any]]:
+        with self.webtoon.connection.cursor() as cur:
+            for name, conversion, value in cur.execute(f"SELECT name, conversion, {GET_VALUE} FROM info"):
+                value = self.webtoon._load_conversion_value(conversion, value)
+                yield name, value
+
+    def values(self) -> typing.Iterator[typing.Any]:
+        with self.webtoon.connection.cursor() as cur:
+            for conversion, value in cur.execute(f"SELECT conversion, {GET_VALUE} FROM info"):
+                value = self.webtoon._load_conversion_value(conversion, value)
+                yield value
+
+    def clear(self, delete_system: bool = False) -> None:
+        with self.webtoon.connection.cursor() as cur:
+            if delete_system:
+                cur.execute("DELETE FROM info")
+            else:
+                cur.execute("DELETE FROM info WHERE name NOT LIKE 'sys\\_%' ESCAPE '\\'")
+
+    def update(self, mapping: typing.Mapping[str, typing.Any]) -> None:
+        conversion, query = self.webtoon._get_conversion_query(self.default_conversion)
+        parameters_gen = (
+            # sql에 저장할 때는 raw가 포함되지 않은 conversion 값을 저장하고
+            # dump 시에는 실제 conversion 값을 이용해 변환
+            (name, conversion, self.webtoon._dump_conversion_value(self.default_conversion, value))
+            for name, value in mapping.items()
+        )
+        with self.webtoon.connection.cursor() as cur:
+            cur.executemany(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", parameters_gen)
+
+    def delete(self, key: str, delete_system: bool = False):
+        if not delete_system:
+            self._protect_system_key(key)
+        with self.webtoon.connection.cursor() as cur:
+            result = cur.execute("DELETE FROM info WHERE name == ? RETURNING 1", (key,)).fetchone()
+            if result is None:
+                raise KeyError(key)
+
+    def get(self, name: str, default=None) -> PrimitiveType | JsonType:
+        # with nullcontext(_cursor) if _cursor is not None else self.webtoon.connection.cursor() as cur:
+        with self.webtoon.connection.cursor() as cur:
+            result = cur.execute(f"SELECT conversion, {GET_VALUE} FROM info WHERE name == ?", (name,)).fetchone()
+        if result is None:
+            if default is _NOTSET:
+                raise KeyError(name)
+            else:
+                return default
+        conversion, value = result
+        value = self.webtoon._load_conversion_value(conversion, value)
+        return value
+
+    def set(self, name: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None) -> None:
+        value = self.webtoon._dump_conversion_value(conversion, value)
+        # 아래 코드에서 conversion이 raw를 포함하지 않는 conversion으로 변경되니 절대 dump 앞에 놓지 말 것!!
+        conversion, query = self.webtoon._get_conversion_query(conversion)
+        with self.webtoon.connection.cursor() as cur:
+            cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
+
+    def setdefault(self, name: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None) -> None:
+        value = self.webtoon._dump_conversion_value(conversion, value)
+        # 아래 코드에서 conversion이 raw를 포함하지 않는 conversion으로 변경되니 절대 dump 앞에 놓지 말 것!!
+        conversion, query = self.webtoon._get_conversion_query(conversion)
+        with self.webtoon.connection.cursor() as cur:
+            try:
+                cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
+            except sqlite3.IntegrityError:  # 이미 값이 있을 경우
+                pass
+
+    def get_conversion(self, name: str) -> ConversionType:
+        with self.webtoon.connection.cursor() as cur:
+            result = cur.execute("SELECT conversion FROM info WHERE name == ?", (name,)).fetchone()
+        if result is None:
+            raise KeyError(name)
+        conversion, = result
+        return conversion
+
+    @staticmethod
+    def _protect_system_key(key: str):
+        if key.startswith("sys_"):
+            raise KeyError(f"Cannot delete info {key!r} since it's system key. Set delete_system=True to delete the key.")
+
+
+class WebtoonEpisodeManager:
+    def __init__(self, webtoon: Webtoon):
+        self.webtoon = webtoon
+
+    # TODO: state 어떻게 할 것인지 결정하기!!
+    def add(self, id: PrimitiveType, name: str, *, episode_no: int | None = None, state: EpisodeState | None = None, meta: bytes | JsonType | None = None) -> int:
+        if meta is not None and isinstance(meta, bytes):
+            meta = self.webtoon.json_dump(meta)
+        with self.webtoon.connection.cursor() as cur:
+            real_episode_no, = cur.execute(
+                """INSERT INTO episodes (episode_no, state, name, id, added_at) VALUES (?, ?, ?, ?, ?) RETURNING episode_no""",
+                (episode_no, state, name, id, self.webtoon.connection.timestamp())
+            ).fetchone()
+        return real_episode_no
+
+    def add_extra_data(self, episode_no: int, purpose: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None):
+        value = self.webtoon._dump_conversion_value(conversion, value)
+        conversion, query = self.webtoon._get_conversion_query(conversion)
+        with self.webtoon.connection.cursor() as cur:
+            cur.execute(
+                f"""INSERT INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",
+                (episode_no, purpose, conversion, value)
+            )
+
+
+class WebtoonMediaManger:
+    def __init__(self, webtoon: Webtoon):
+        self.webtoon = webtoon
+
+    @typing.overload
+    def add(
+        self,
+        path: Path,
+        /,
+        episode_no: int,
+        media_no: int,
+        purpose: str,
+        *,
+        state=None,
+        media_type: str | None = None,
+        conversion: ConversionIncludingRawType = None,
+        media_name: str | None = None,
+        lazy_load: bool = True,
+    ) -> WebtoonMedia: ...
+    @typing.overload
+    def add(
+        self,
+        data: PrimitiveType | JsonType,
+        /,
+        episode_no: int,
+        media_no: int,
+        purpose: str,
+        *,
+        state=None,
+        media_type: str | None = None,
+        conversion: ConversionIncludingRawType = None,
+        media_name: str | None = None,
+        lazy_load: bool = True,
+    ) -> WebtoonMedia: ...
+    def add(
+        self,
+        path_or_data: Path | PrimitiveType | JsonType,
+        /,
+        episode_no: int,
+        # number는 '한 컷'을 의미하고, image 외에 comment, styles, meta 등 다양한 정보를 포함시킬 수 있다.
+        media_no: int,
+        # image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
+        purpose: str,
+        *,
+        state=None,
+        media_type: str | None = None,
+        conversion: ConversionIncludingRawType = None,
+        media_name: str | None = None,
+        lazy_load: bool = True,
+    ) -> WebtoonMedia:
+        with self.webtoon.connection.cursor() as cur:
+            if isinstance(path_or_data, Path):
+                path = str(path_or_data)
+                data = None
+                if path_or_data.is_absolute():
+                    if not self.webtoon.info.get("sys_allow_absolute_path"):
+                        raise ValueError("The file does not accept absolute path for the path value.")
+                else:
+                    if not self.webtoon.info.get("sys_allow_relative_path"):
+                        raise ValueError("The file does not accept relative path for the path value.")
+            else:
+                path = None
+                data = path_or_data
+                data = self.webtoon._dump_conversion_value(conversion, data)
+            # 다행히도 json() 함수와 jsonb() 함수 모두 NULL을 받았을 때 NULL을 리턴해서
+            # path가 주어진 상황에서도 문제 없이 처리 가능함.
+            conversion, query = self.webtoon._get_conversion_query(conversion)
+
+            current_time = self.webtoon.connection.timestamp()
+            media_id, = cur.execute(
+                f"""INSERT INTO media (
+                    episode_no,
+                    media_no,
+                    purpose,
+                    state,
+                    media_type,
+                    name,
+                    conversion,
+                    path,
+                    data,
+                    added_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, {query}, ?) RETURNING id""",
+                (episode_no, media_no, purpose, state, media_type, media_name, conversion, path, data, current_time)
+            ).fetchone()
+            return WebtoonMedia.media_from_id(media_id, self.webtoon, is_lazy=lazy_load)
+
+    def get_matched_media(
+        self,
+        episode_no: int | None,
+        purpose: str | None = None,
+        state: str | None = None,
+        *,
+        lazy_load: bool = False,
+    ) -> typing.Iterator[WebtoonMediaManger]:
+        with self.webtoon.connection.cursor() as cur:
+            for media_id, in cur.execute(
+                """
+                SELECT id
+                FROM media
+                WHERE (?1 IS NULL OR episode_no == ?1) AND (?2 IS NULL OR purpose == ?2) AND (?3 IS NULL OR state == ?3)
+                """,
+                (episode_no, purpose, state)
+            ):
+                yield WebtoonMedia.media_from_id(media_id, self.webtoon, is_lazy=lazy_load)
+
+
+class Webtoon:
+    def __init__(
+        self,
+        path: Pathlike,
+        *,
+        journal_mode: JournalModes | None = None,
+        connection_mode: ConnectionMode = "c",
+    ) -> None:
+        self.connection = WebtoonConnectionManager(
+            path=path,
+            journal_mode=journal_mode,
+            connection_mode=connection_mode,
+        )
+        self._json_encoder: json.JSONEncoder | None = None
+        self.info = WebtoonInfoManager(self)
+        self.episode = WebtoonEpisodeManager(self)
+        self.media = WebtoonMediaManger(self)
+
+    def __enter__(self):
+        self.connection.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return self.connection.__exit__(exc_type, exc_value, traceback)
+
+    def json_dump(self, data: JsonType):
+        if not self._json_encoder:
+            self._json_encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
+        return self._json_encoder.encode(data)
+
+    @contextmanager
+    def execute(self, query: typing.LiteralString, params: typing.Any) -> typing.Iterator[sqlite3.Cursor]:
+        with self.connection.cursor() as cur:
+            yield cur.execute(query, params)
+
+    def _dump_conversion_value(self, conversion: ConversionIncludingRawType, value) -> str | PrimitiveType:
+        if conversion in ("json", "jsonb"):
+            value = self.json_dump(value)
+        return value
+
+    def _get_conversion_query(self, conversion: ConversionIncludingRawType = None) -> tuple[ConversionType, str]:
+        match conversion:
+            case None:
+                return None, "?"
+            case "json" | "json_raw":
+                return "json", "json(?)"
+            case "jsonb" | "jsonb_raw":
+                return "json", "jsonb(?)"
+            case _:
+                raise ValueError(f"Unknown conversion: {conversion}")
+
+    def _load_conversion_value(self, conversion: ConversionIncludingRawType, original_value: PrimitiveType) -> PrimitiveType | JsonType:
+        match conversion:
+            case None:
+                return original_value
+            case "json" | "jsonb":
+                return json.loads(original_value)  # type: ignore
+            case "json_raw" | "jsonb_raw":
+                raise ValueError(f"Raw conversion {conversion!r} cannot be used while loading.")
+                # raw conversion은 일종의 의사 conversion이고 json으로 변환하지 않는다는 의사를 전달하고 나서는
+                # 일반적인 json conversion으로 바뀌고 사라져야 하기 때문에 raw conversion이 나타나면 ValueError를 낸다.
+                # return original_value
+            case _:
+                raise ValueError(f"Unknown conversion: {conversion}")
+
+
+class MediaLazyLoader(typing.Generic[T]):
+    def __init__(self, name: str, data_processor: typing.Callable[..., T] | None = None) -> None:
+        self.name = name
+        self.data_processor = data_processor
+
+    def __get__(self, media, obj_type=None) -> T:
+        try:
+            # 이유는 잘 모르겠지만 getattr는 작동을 안 함
+            webtoon = media._webtoon
+        except Exception:
+            raise ValueError("Realtime fetching is not possible")
+        name = self.name
+        if not name.isidentifier() or name.startswith("sqlite_"):
+            raise ValueError(f"Invalid column name: {name!r}")
+        with webtoon.connection.cursor() as cur:
+            result = cur.execute(f"SELECT {name} from media where id == ?", (media.media_id,)).fetchone()
+        if result is None:
+            raise ValueError(f"Can't find media that have media_id == {media.media_id}.")
+        data = result[0]
+        if self.data_processor:
+            data = self.data_processor(data)
+        if media._cache_results:
+            setattr(media, name, data)
+        return data
+
+
+@fieldenum
+class WebtoonMedia:
+    # fieldenum은 기본적으로 __dict__를 지원해주지 않기 때문에 MediaWithId에서 캐싱을 적용하려고 할 때는 직접 선언해야 함
+    __slots__ = ("__dict__", "__weakref__")
+
+    media_id: int
+    # non-data descriptor여서 인스턴스에 값이 있을 경우 해당 값이 불러짐
+    episode_no = MediaLazyLoader[int]("episode_no")
+    media_no = MediaLazyLoader[int]("media_no")
+    purpose = MediaLazyLoader[str | None]("purpose")
+    state = MediaLazyLoader[typing.Any]("state")
+    media_type = MediaLazyLoader[str]("media_type")
+    name = MediaLazyLoader[str]("name")
+    conversion = MediaLazyLoader[ConversionType]("conversion")
+    path = MediaLazyLoader[str | None]("path")
+    data = MediaLazyLoader[str | None]("data")
+    added_at = MediaLazyLoader[datetime.datetime]("added_at", WebtoonConnectionManager.fromtimestamp)
+
+    MediaWithId = Variant(
+        media_id=int,
+        _webtoon=Webtoon,
+        _cache_results=bool,
+    ).default(_cache_results=False)
+    Media = Variant(
+        media_id=int,
+        episode_no=int,
+        media_no=int,
+        purpose=str | None,
+        state=typing.Any,
+        name=str,
+        media_type=str | None,
+        conversion=ConversionType,
+        path=str | None,
+        data=str | None,
+        added_at=datetime.datetime,
+    ).default(state=None, media_type=None, conversion=None, name=None)
+    MediaWithoutId = Variant(
+        episode_no=int,
+        media_no=int,
+        purpose=str | None,
+        state=typing.Any,
+        name=str,
+        media_type=str | None,
+        conversion=ConversionType,
+        path=str | None,
+        data=str | None,
+    ).default(state=None, media_type=None, conversion=None, name=None)
+
+    def replace_config(
+        self,
+        *,
+        media_id: int | None = None,
+        webtoon: Webtoon | None = None,
+        cache_results: bool | None = None,
+    ):
+        if not isinstance(self, WebtoonMedia.MediaWithId):  # type: ignore
+            raise ValueError("Only WebtoonMedia.MediaWithId can use this function.")
+        return WebtoonMedia.MediaWithId(
+            self.media_id if media_id is None else media_id,
+            self._webtoon if webtoon is None else webtoon,  # type: ignore
+            self._cache_results if cache_results is None else cache_results,  # type: ignore
+        )
+
+    @classmethod
+    def media_from_id(cls, media_id: int, webtoon: Webtoon, *, is_lazy: bool = False):
+        if is_lazy:
+            return WebtoonMedia.MediaWithId(media_id, webtoon)
+
+        # 아마도 한 cursor 안에서는 하나의 statement가 실행되는 동안 다른 statement가 실행되면 끊기는 것 같음.
+        # 따라서 iterator가 작동하고 있는 동안에는 _cursor를 사용해서는 안 됨
+        # 커서 만들고 삭제하는 데에 100ns면 되니깐 그냥 만들어서 쓰자...
+        with webtoon.connection.cursor() as cur:
+            result = cur.execute(
+                """
+                SELECT id, episode_no, media_no, purpose, state, media_type, name, conversion, path, data, added_at
+                FROM media
+                WHERE id == ?
+                """,
+                (media_id,)
+            ).fetchone()
+            if result is None:
+                raise ValueError(f"Can't find media that have media_id == {media_id}.")
+            media_id, episode_no, media_no, purpose, state, media_type, name, conversion, path, data, added_at = result
+            return WebtoonMedia.Media(
+                media_id=media_id,
+                episode_no=episode_no,
+                media_no=media_no,
+                purpose=purpose,
+                state=state,
+                media_type=media_type,
+                name=name,
+                conversion=conversion,
+                path=path and Path(path),
+                data=data,
+                added_at=WebtoonConnectionManager.fromtimestamp(added_at),
+            )

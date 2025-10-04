@@ -1,3 +1,3 @@
 from __future__ import annotations
 
-raise ImportError("Invalid version to use.")
+from ._webtoon import Webtoon
