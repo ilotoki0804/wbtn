@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from contextlib import closing, contextmanager, nullcontext, suppress
-from dataclasses import dataclass
+from contextlib import closing, contextmanager
 import datetime
-import json
 import os
 from pathlib import Path
 import sqlite3
@@ -84,12 +82,27 @@ class WebtoonConnectionManager:
 
     def _connect(self):
         assert not self.conn, "Connection is already initialized"
+
+        if self.path == ":memory:":
+            # file::memory:?mode=...으로 모드를 설정할 수 있기는 하나 별로 쓸모는 없기에 그냥 다른 모드는 사용하지 못하도록 함.
+            if self.connection_mode != "c":
+                raise WebtoonOpenError(
+                    f"Cannot set connection_mode to {self.connection_mode!r} since "
+                    "the database is on memory. Only viable connection_mode is 'c'."
+                )
+            self.in_memory = True
+            self.existed = False
+            self.read_only = False
+            self.conn = sqlite3.connect(":memory:")
+            return
+
         # The code copied from dbm.sqlite stdlib implementation
         self.path = path = Path(os.fsdecode(self.path))
         MODE = 0o666  # The file mode is fixed because why not
         # 비어있지 않은 존재하는 파일은 존재하는 것으로 간주
         self.existed = path.exists() and path.stat().st_size != 0
         self.read_only = self.connection_mode == "r"
+        self.in_memory = False
         match self.connection_mode:
             case "r":
                 flagged = "ro"
@@ -163,7 +176,9 @@ class WebtoonConnectionManager:
 
         self.conn.execute("PRAGMA foreign_keys=ON")
 
-        journal_mode = None if self.journal_mode is None else str(self.journal_mode)
+        journal_mode = None if self.journal_mode is None else str(self.journal_mode).lower()
+        if self.in_memory and journal_mode not in (None, "memory", "off"):
+            raise WebtoonOpenError(f"Invalid journal mode for in-memory database: {journal_mode}")
         if journal_mode is not None and journal_mode not in JOURNAL_MODES:
             raise WebtoonOpenError(f"Invalid journal mode: {journal_mode}")
         if not self.read_only:
