@@ -325,6 +325,43 @@ class Webtoon:
         self.connection.__enter__()
         return self
 
+    def migrate(
+        self,
+        new_path: str,
+        *,
+        replace: bool = False,
+        # 파일을 지울 거면 그냥 os.rename쓰면 되지 뭐하러 migrate를 써?
+        # 아 물론 다른 Connection이 있거나 journal 파일 누락으로 인한 손상을 막고 싶다면 유용할 수 있음.
+        # delete_old_file: bool = False,
+    ) -> typing.Self:
+        # OperationalError: output file already exists가 발생할 수 있음.
+        self.execute("VACUUM INTO ?", (new_path,))
+        self.connection.__exit__(None, None, None)
+        original_bypass = self.connection.bypass_integrity_check
+        if replace:
+            connection = WebtoonConnectionManager(
+                new_path,
+                journal_mode=self.connection.journal_mode,  # type: ignore
+                connection_mode="c",  # type: ignore  # connection mode는 강제로 설정. 이전 설정이 n이거나 한다면 데이터가 제거될 수 있음.
+            )
+            self.connection = connection
+            webtoon = self
+        else:
+            webtoon = type(self)(
+                new_path,
+                journal_mode=self.connection.journal_mode,  # type: ignore
+                connection_mode="c",  # type: ignore
+            )
+            webtoon.info.default_conversion = self.info.default_conversion
+
+        webtoon.connection.bypass_integrity_check = True
+        webtoon.connection._configure_pragma_only = True
+        webtoon.connect()
+        webtoon.connection.bypass_integrity_check = original_bypass
+        del webtoon.connection._configure_pragma_only
+        # webtoon.connection.connection_mode =
+        return webtoon
+
     def close(self):
         return self.connection.__exit__(None, None, None)
 

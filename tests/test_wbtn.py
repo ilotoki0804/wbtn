@@ -574,6 +574,45 @@ def test_info_setdefault_behavior(tmp_path):
         assert w.info["existing"] == "orig"
 
 
+def test_webtoon_migrate_non_replace_creates_new_instance(tmp_path):
+    """Test migrate with replace=False returns a new Webtoon instance connected to new file"""
+    src_path = tmp_path / "orig.wbtn"
+    dest_path = tmp_path / "migrated.wbtn"
+
+    with Webtoon(src_path, connection_mode="n") as w:
+        w.info["key"] = "value"
+
+        new_w = w.migrate(str(dest_path), replace=False)
+        # Should be a different object
+        assert new_w is not w
+        # New webtoon should have the same sys_agent
+        assert new_w.info.get("sys_agent") == "wbtn-python"
+
+    # Original file should still exist and have data
+    with Webtoon(src_path, connection_mode="r") as w2:
+        assert w2.info.get("key") == "value"
+
+    # Migrated file should exist
+    with Webtoon(dest_path, connection_mode="r") as wm:
+        assert wm.info.get("sys_agent") == "wbtn-python"
+
+
+def test_webtoon_migrate_replace_switches_connection(tmp_path):
+    """Test migrate with replace=True replaces current Webtoon.connection in-place"""
+    src_path = tmp_path / "orig_replace.wbtn"
+    dest_path = tmp_path / "migrated_replace.wbtn"
+
+    with Webtoon(src_path, connection_mode="n") as w:
+        replaced_w = w.migrate(str(dest_path), replace=True)
+        # When replace=True and used as contextmanager, the yielded object should be the same instance
+        assert replaced_w is w
+        # The connection should now point to the migrated file
+        with replaced_w.connection.cursor() as cur:
+            # check that pragma application_id exists (basic health check)
+            app_id, = cur.execute("PRAGMA application_id").fetchone()
+            assert app_id == 0x5742544e
+
+
 def test_get_conversion_invalid_raises(tmp_path):
     """Unknown conversion passed to _get_conversion_query should raise ValueError"""
     path = tmp_path / "conv.wbtn"

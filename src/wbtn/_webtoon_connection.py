@@ -25,18 +25,21 @@ class WebtoonConnectionManager:
         *,
         journal_mode: JournalModes | None = None,
         connection_mode: ConnectionMode = "c",
+        bypass_integrity_check: bool = False,
     ):
         self.path = path
         self.conn = None
         self.journal_mode = journal_mode
         self.connection_mode = connection_mode
+        self.bypass_integrity_check = bypass_integrity_check
+        self._configure_pragma_only = False
 
     def __enter__(self):
         if not self.conn:
             try:
                 self._connect()
                 self._configure_pragma()
-                if not self.read_only:
+                if not self.read_only and not self._configure_pragma_only:
                     self._add_tables()
                     self._add_infos()
             except BaseException:
@@ -145,38 +148,43 @@ class WebtoonConnectionManager:
         # pragma문은 transaction 안에서 사용할 수 없어 bare하게 진행해야 함 :/
         assert self.conn, "Connection is not initialized"
 
-        # 'WBTN'을 뜻하는 bytes
-        # assert bytes.fromhex("5742544e") == b"WBTN"
-        APPLICATION_ID = 0x5742544e
-        # 파일이 존재했었다면 application_id를 통해 WBTN 파일인지 확인
-        if self.existed:
-            application_id, = self.conn.execute("PRAGMA application_id").fetchone()
-            if APPLICATION_ID != application_id:
-                raise WebtoonSchemaError("The file is not a WBTN file")
-        elif not self.read_only:
-            self.conn.execute(f"PRAGMA application_id={APPLICATION_ID}")
+        if self.bypass_integrity_check:
+            self.conn.execute(f"PRAGMA application_id=0x5742544e")
+            self.conn.execute(f"PRAGMA user_version={int(user_version)}")
+        else:
+            # 'WBTN'을 뜻하는 bytes
+            # assert bytes.fromhex("5742544e") == b"WBTN"
+            APPLICATION_ID = 0x5742544e
+            # 파일이 존재했었다면 application_id를 통해 WBTN 파일인지 확인
+            if self.existed:
+                application_id, = self.conn.execute("PRAGMA application_id").fetchone()
+                if APPLICATION_ID != application_id:
+                    raise WebtoonSchemaError("The file is not a WBTN file")
+            elif not self.read_only:
+                self.conn.execute(f"PRAGMA application_id=0x5742544e")
 
-        # user_version은 1000에서 시작.
-        # 만약 다른 파일을 받았을 때 1000으로 정수 나눗셈한 값이 2 이상이 된다면 호환되지 않는 스키마로 간주됨.
-        if self.existed:
-            if self.file_user_version == 0:
-                warnings.warn("Webtoon file schema version is not initialized. Initialize to the current version.", UserWarning)
+            # user_version은 1000에서 시작.
+            # 만약 다른 파일을 받았을 때 1000으로 정수 나눗셈한 값이 2 이상이 된다면 호환되지 않는 스키마로 간주됨.
+            if self.existed:
+                if self.file_user_version == 0:
+                    warnings.warn("Webtoon file schema version is not initialized. Initialize to the current version.", UserWarning)
+                    self.file_user_version = int(user_version)
+                if user_version // 1000 < self.file_user_version // 1000:
+                    if os.getenv("WBTN_FORCE_OPEN_FUTURE_FORMAT", "0") == "0":
+                        raise WebtoonSchemaError(
+                            f"Cannot open future file format: V{self.file_user_version}. "
+                            "to force open the file, set WBTN_FORCE_OPEN_FUTURE_FORMAT environment variable to 1."
+                        )
+                if user_version // 1000 > self.file_user_version // 1000:
+                    if os.getenv("WBTN_FORCE_OPEN_PAST_FORMAT", "0") == "0":
+                        raise WebtoonSchemaError(
+                            f"Cannot open future file format: V{self.file_user_version}. "
+                            "to force open the file, set WBTN_FORCE_OPEN_PAST_FORMAT environment variable to 1."
+                        )
+            elif not self.read_only:
+                # 호오옥시 모를 SQL 인젝션을 방어하기 위해 타입 확인 추가
+                # 물론 실수를 막을 수 있다 정도지 완전히 안전한 건 전혀 아님.
                 self.file_user_version = int(user_version)
-            if user_version // 1000 < self.file_user_version // 1000:
-                if os.getenv("WBTN_FORCE_OPEN_FUTURE_FORMAT", "0") == "0":
-                    raise WebtoonSchemaError(
-                        f"Cannot open future file format: V{self.file_user_version}. "
-                        "to force open the file, set WBTN_FORCE_OPEN_FUTURE_FORMAT environment variable to 1."
-                    )
-            if user_version // 1000 > self.file_user_version // 1000:
-                if os.getenv("WBTN_FORCE_OPEN_PAST_FORMAT", "0") == "0":
-                    raise WebtoonSchemaError(
-                        f"Cannot open future file format: V{self.file_user_version}. "
-                        "to force open the file, set WBTN_FORCE_OPEN_PAST_FORMAT environment variable to 1."
-                    )
-        elif not self.read_only:
-            # 호오옥시 모를 SQL 인젝션을 방어하기 위해 타입 확인 추가
-            self.file_user_version = int(user_version)
 
         self.conn.execute("PRAGMA foreign_keys=ON")
 
