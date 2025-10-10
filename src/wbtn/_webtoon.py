@@ -31,6 +31,11 @@ __all__ = (
 _NOTSET = object()
 GET_VALUE: typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
 T = typing.TypeVar("T")
+_json_encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
+
+
+def _json_dump(data: JsonType) -> str:
+    return _json_encoder.encode(data)
 
 
 class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
@@ -164,7 +169,7 @@ class WebtoonEpisodeManager:
     # TODO: state 어떻게 할 것인지 결정하기!!
     def add(self, id: PrimitiveType, name: str, *, episode_no: int | None = None, state: EpisodeState | None = None, meta: bytes | JsonType | None = None) -> int:
         if meta is not None and isinstance(meta, bytes):
-            meta = self.webtoon.json_dump(meta)
+            meta = _json_dump(meta)
         with self.webtoon.connection.cursor() as cur:
             real_episode_no, = cur.execute(
                 """INSERT INTO episodes (episode_no, state, name, id, added_at) VALUES (?, ?, ?, ?, ?) RETURNING episode_no""",
@@ -291,7 +296,7 @@ class WebtoonMediaManger:
 
 
 class Webtoon:
-    __slots__ = "connection", "_json_encoder", "info", "episode", "media"
+    __slots__ = "connection", "info", "episode", "media"
 
     def __init__(
         self,
@@ -305,7 +310,6 @@ class Webtoon:
             journal_mode=journal_mode,
             connection_mode=connection_mode,
         )
-        self._json_encoder: json.JSONEncoder | None = None
         self.info = WebtoonInfoManager(self)
         self.episode = WebtoonEpisodeManager(self)
         self.media = WebtoonMediaManger(self)
@@ -324,11 +328,6 @@ class Webtoon:
     def close(self):
         return self.connection.__exit__(None, None, None)
 
-    def json_dump(self, data: JsonType):
-        if not self._json_encoder:
-            self._json_encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
-        return self._json_encoder.encode(data)
-
     @contextmanager
     def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> typing.Iterator[sqlite3.Cursor]:
         with self.connection.cursor() as cur:
@@ -336,7 +335,7 @@ class Webtoon:
 
     def _dump_conversion_value(self, conversion: ConversionIncludingRawType, value) -> str | PrimitiveType:
         if conversion in ("json", "jsonb"):
-            value = self.json_dump(value)
+            value = _json_dump(value)
         return value
 
     def _get_conversion_query(self, conversion: ConversionIncludingRawType = None) -> tuple[ConversionType, str]:
