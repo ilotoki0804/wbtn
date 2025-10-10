@@ -1,19 +1,32 @@
 from __future__ import annotations
 
-from contextlib import contextmanager, nullcontext
 import datetime
 import json
-from pathlib import Path
 import sqlite3
 import typing
+from contextlib import contextmanager
+from pathlib import Path
 
 from fieldenum import Variant, fieldenum
 
-from ._base import JournalModes, ConnectionMode, JsonType, PrimitiveType, EpisodeState, EPISODE_STATE, ConversionIncludingRawType, ConversionType
+from ._base import (
+    ConnectionMode,
+    ConversionIncludingRawType,
+    ConversionType,
+    EpisodeState,
+    JournalModes,
+    JsonType,
+    PrimitiveType,
+)
 from ._webtoon_connection import WebtoonConnectionManager
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath as Pathlike
+
+__all__ = (
+    "Webtoon",
+    "WebtoonMedia",
+)
 
 _NOTSET = object()
 GET_VALUE: typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
@@ -21,6 +34,8 @@ T = typing.TypeVar("T")
 
 
 class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
+    __slots__ = "webtoon", "default_conversion"
+
     def __init__(self, webtoon: Webtoon) -> None:
         self.webtoon = webtoon
         self.default_conversion: ConversionIncludingRawType = None
@@ -141,6 +156,8 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
 
 
 class WebtoonEpisodeManager:
+    __slots__ = "webtoon",
+
     def __init__(self, webtoon: Webtoon):
         self.webtoon = webtoon
 
@@ -166,6 +183,8 @@ class WebtoonEpisodeManager:
 
 
 class WebtoonMediaManger:
+    __slots__ = "webtoon",
+
     def __init__(self, webtoon: Webtoon):
         self.webtoon = webtoon
 
@@ -272,6 +291,8 @@ class WebtoonMediaManger:
 
 
 class Webtoon:
+    __slots__ = "connection", "_json_encoder", "info", "episode", "media"
+
     def __init__(
         self,
         path: Pathlike,
@@ -295,6 +316,13 @@ class Webtoon:
 
     def __exit__(self, exc_type, exc_value, traceback):
         return self.connection.__exit__(exc_type, exc_value, traceback)
+
+    def connect(self):
+        self.connection.__enter__()
+        return self
+
+    def close(self):
+        return self.connection.__exit__(None, None, None)
 
     def json_dump(self, data: JsonType):
         if not self._json_encoder:
