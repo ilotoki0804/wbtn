@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from wbtn import Webtoon
 from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError
 from wbtn._webtoon_connection import version, WebtoonConnectionManager
-from wbtn._webtoon import WebtoonMedia, MediaLazyLoader, WebtoonInfoManager
+from wbtn._webtoon import WebtoonMedia, MediaLazyLoader, WebtoonInfoManager, _json_dump
 
 
 # ============ Connection and Basic Tests ============
@@ -202,7 +202,7 @@ def test_json_dump(tmp_path):
     """Test JSON dumping helper"""
     path = tmp_path / "json.wbtn"
     with Webtoon(path, connection_mode="n") as w:
-        result = w.json_dump({"a": 1, "b": [1, 2, 3]})
+        result = _json_dump({"a": 1, "b": [1, 2, 3]})
         assert isinstance(result, str)
         assert json.loads(result) == {"a": 1, "b": [1, 2, 3]}
 
@@ -258,7 +258,7 @@ def test_load_conversion_value(tmp_path):
         assert w._load_conversion_value(None, "plain") == "plain"
 
         # json conversion
-        json_str = w.json_dump({"key": "value"})
+        json_str = _json_dump({"key": "value"})
         result = w._load_conversion_value("json", json_str)
         assert result == {"key": "value"}
 
@@ -656,7 +656,7 @@ def test_execute_context_manager_and_timestamp_monotonic(tmp_path):
     """Test Webtoon.execute context manager and that timestamp is monotonic"""
     path = tmp_path / "exec.wbtn"
     with Webtoon(path, connection_mode="n") as w:
-        with w.execute("SELECT 1", ()) as cur:
+        with w.execute_with("SELECT 1", ()) as cur:
             row = cur.fetchone()
             assert row[0] == 1
 

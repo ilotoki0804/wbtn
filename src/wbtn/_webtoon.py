@@ -329,9 +329,13 @@ class Webtoon:
         return self.connection.__exit__(None, None, None)
 
     @contextmanager
-    def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> typing.Iterator[sqlite3.Cursor]:
+    def execute_with(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> typing.Iterator[sqlite3.Cursor]:
         with self.connection.cursor() as cur:
             yield cur.execute(query, params)
+
+    def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> None:
+        with self.connection.cursor() as cur:
+            cur.execute(query, params)
 
     def _dump_conversion_value(self, conversion: ConversionIncludingRawType, value) -> str | PrimitiveType:
         if conversion in ("json", "jsonb"):
