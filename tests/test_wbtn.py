@@ -152,6 +152,9 @@ def test_info_pop(tmp_path):
         assert result == "value"
         assert "remove" not in w.info
 
+        with pytest.raises(KeyError):
+            _ = w.info.pop("nonexistent")
+
         # Pop with default
         result = w.info.pop("nonexistent", "default")
         assert result == "default"
@@ -165,7 +168,6 @@ def test_info_clear(tmp_path):
         w.info["b"] = 2
 
         w.info.clear()
-        # System keys should also be cleared
         assert all(key.startswith("sys_") for key in w.info)
 
         w.info.clear(delete_system=True)
