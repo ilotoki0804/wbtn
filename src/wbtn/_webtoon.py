@@ -167,9 +167,7 @@ class WebtoonEpisodeManager:
         self.webtoon = webtoon
 
     # TODO: state 어떻게 할 것인지 결정하기!!
-    def add(self, id: PrimitiveType, name: str, *, episode_no: int | None = None, state: EpisodeState | None = None, meta: bytes | JsonType | None = None) -> int:
-        if meta is not None and isinstance(meta, bytes):
-            meta = _json_dump(meta)
+    def add(self, id: PrimitiveType, name: str, *, episode_no: int | None = None, state: EpisodeState | None = None) -> int:
         with self.webtoon.connection.cursor() as cur:
             real_episode_no, = cur.execute(
                 """INSERT INTO episodes (episode_no, state, name, id, added_at) VALUES (?, ?, ?, ?, ?) RETURNING episode_no""",
