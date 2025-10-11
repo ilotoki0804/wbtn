@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import datetime
-import json
 import sqlite3
 import typing
 from contextlib import contextmanager
@@ -11,14 +11,13 @@ from fieldenum import Variant, fieldenum
 
 from ._base import (
     ConnectionMode,
-    ConversionIncludingRawType,
     ConversionType,
     EpisodeState,
     JournalModes,
-    JsonType,
     PrimitiveType,
 )
 from ._webtoon_connection import WebtoonConnectionManager
+from ._json_data import JsonData
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath as Pathlike
@@ -31,19 +30,14 @@ __all__ = (
 _NOTSET = object()
 GET_VALUE: typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
 T = typing.TypeVar("T")
-_json_encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
+ValueType = PrimitiveType | JsonData
 
 
-def _json_dump(data: JsonType) -> str:
-    return _json_encoder.encode(data)
-
-
-class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
-    __slots__ = "webtoon", "default_conversion"
+class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
+    __slots__ = "webtoon"
 
     def __init__(self, webtoon: Webtoon) -> None:
         self.webtoon = webtoon
-        self.default_conversion: ConversionIncludingRawType = None
 
     def __iter__(self) -> typing.Iterator[str]:
         with self.webtoon.connection.cursor() as cur:
@@ -55,11 +49,11 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
             count, = cur.execute("SELECT count() FROM info").fetchone()
         return count
 
-    def __getitem__(self, key: str) -> typing.Any:
+    def __getitem__(self, key: str) -> ValueType:
         return self.get(key, _NOTSET)
 
-    def __setitem__(self, key: str, value: typing.Any) -> None:
-        return self.set(key, value, conversion=self.default_conversion)
+    def __setitem__(self, key: str, value: ValueType) -> None:
+        return self.set(key, value)
 
     def __delitem__(self, key: str) -> None:
         return self.delete(key)
@@ -78,13 +72,13 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
         value = self.webtoon._load_conversion_value(conversion, value)
         return value
 
-    def items(self) -> typing.Iterator[tuple[str, typing.Any]]:
+    def items(self) -> typing.Iterator[tuple[str, ValueType]]:
         with self.webtoon.connection.cursor() as cur:
             for name, conversion, value in cur.execute(f"SELECT name, conversion, {GET_VALUE} FROM info"):
                 value = self.webtoon._load_conversion_value(conversion, value)
                 yield name, value
 
-    def values(self) -> typing.Iterator[typing.Any]:
+    def values(self) -> typing.Iterator[ValueType]:
         with self.webtoon.connection.cursor() as cur:
             for conversion, value in cur.execute(f"SELECT conversion, {GET_VALUE} FROM info"):
                 value = self.webtoon._load_conversion_value(conversion, value)
@@ -97,17 +91,6 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
             else:
                 cur.execute("DELETE FROM info WHERE name NOT LIKE 'sys\\_%' ESCAPE '\\'")
 
-    def update(self, mapping: typing.Mapping[str, typing.Any]) -> None:
-        conversion, query = self.webtoon._get_conversion_query(self.default_conversion)
-        parameters_gen = (
-            # sql에 저장할 때는 raw가 포함되지 않은 conversion 값을 저장하고
-            # dump 시에는 실제 conversion 값을 이용해 변환
-            (name, conversion, self.webtoon._dump_conversion_value(self.default_conversion, value))
-            for name, value in mapping.items()
-        )
-        with self.webtoon.connection.cursor() as cur:
-            cur.executemany(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", parameters_gen)
-
     def delete(self, key: str, delete_system: bool = False):
         if not delete_system:
             self._protect_system_key(key)
@@ -116,7 +99,7 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
             if result is None:
                 raise KeyError(key)
 
-    def get(self, name: str, default=None) -> PrimitiveType | JsonType:
+    def get(self, name: str, default=None) -> ValueType:
         # with nullcontext(_cursor) if _cursor is not None else self.webtoon.connection.cursor() as cur:
         with self.webtoon.connection.cursor() as cur:
             result = cur.execute(f"SELECT conversion, {GET_VALUE} FROM info WHERE name == ?", (name,)).fetchone()
@@ -129,17 +112,15 @@ class WebtoonInfoManager(typing.MutableMapping[str, PrimitiveType | JsonType]):
         value = self.webtoon._load_conversion_value(conversion, value)
         return value
 
-    def set(self, name: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None) -> None:
-        value = self.webtoon._dump_conversion_value(conversion, value)
-        # 아래 코드에서 conversion이 raw를 포함하지 않는 conversion으로 변경되니 절대 dump 앞에 놓지 말 것!!
-        conversion, query = self.webtoon._get_conversion_query(conversion)
+    def set(self, name: str, value: ValueType) -> None:
+        # value가 변경되는 순서에 유의하기
+        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
 
-    def setdefault(self, name: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None) -> None:
-        value = self.webtoon._dump_conversion_value(conversion, value)
-        # 아래 코드에서 conversion이 raw를 포함하지 않는 conversion으로 변경되니 절대 dump 앞에 놓지 말 것!!
-        conversion, query = self.webtoon._get_conversion_query(conversion)
+    def setdefault(self, name: str, value: ValueType) -> None:
+        # value가 변경되는 순서에 유의하기
+        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
         with self.webtoon.connection.cursor() as cur:
             try:
                 cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
@@ -175,9 +156,9 @@ class WebtoonEpisodeManager:
             ).fetchone()
         return real_episode_no
 
-    def add_extra_data(self, episode_no: int, purpose: str, value: PrimitiveType | JsonType, conversion: ConversionIncludingRawType = None):
-        value = self.webtoon._dump_conversion_value(conversion, value)
-        conversion, query = self.webtoon._get_conversion_query(conversion)
+    def add_extra_data(self, episode_no: int, purpose: str, value: PrimitiveType | JsonData):
+        # value가 변경되는 순서에 유의하기
+        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(
                 f"""INSERT INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",
@@ -199,17 +180,17 @@ class WebtoonMediaManger:
         episode_no: int,
         media_no: int,
         purpose: str,
+        conversion: ConversionType = None,
         *,
         state=None,
         media_type: str | None = None,
-        conversion: ConversionIncludingRawType = None,
         media_name: str | None = None,
         lazy_load: bool = True,
     ) -> WebtoonMedia: ...
     @typing.overload
     def add(
         self,
-        data: PrimitiveType | JsonType,
+        data: PrimitiveType | JsonData,
         /,
         episode_no: int,
         media_no: int,
@@ -217,23 +198,22 @@ class WebtoonMediaManger:
         *,
         state=None,
         media_type: str | None = None,
-        conversion: ConversionIncludingRawType = None,
         media_name: str | None = None,
         lazy_load: bool = True,
     ) -> WebtoonMedia: ...
     def add(
         self,
-        path_or_data: Path | PrimitiveType | JsonType,
+        path_or_data: Path | PrimitiveType | JsonData,
         /,
         episode_no: int,
         # number는 '한 컷'을 의미하고, image 외에 comment, styles, meta 등 다양한 정보를 포함시킬 수 있다.
         media_no: int,
         # image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
         purpose: str,
+        conversion: ConversionType | None = None,
         *,
         state=None,
         media_type: str | None = None,
-        conversion: ConversionIncludingRawType = None,
         media_name: str | None = None,
         lazy_load: bool = True,
     ) -> WebtoonMedia:
@@ -250,10 +230,17 @@ class WebtoonMediaManger:
             else:
                 path = None
                 data = path_or_data
-                data = self.webtoon._dump_conversion_value(conversion, data)
+                if conversion:
+                    raise ValueError("conversion cannot be provided directly through conversion parameter.")
+
             # 다행히도 json() 함수와 jsonb() 함수 모두 NULL을 받았을 때 NULL을 리턴해서
             # path가 주어진 상황에서도 문제 없이 처리 가능함.
-            conversion, query = self.webtoon._get_conversion_query(conversion)
+            if conversion:
+                query = self.webtoon._get_conversion_query_from_conversion(conversion)
+            else:
+                conversion, query = self.webtoon._get_conversion_query(data)
+            # data를 직접 변형하니 get_conversion보다 먼저 오게 되어 값을 왜곡시키지 않도록 주의하기.
+            data = self.webtoon._dump_conversion_value(data)
 
             current_time = self.webtoon.connection.timestamp()
             media_id, = cur.execute(
@@ -350,7 +337,6 @@ class Webtoon:
                 journal_mode=self.connection.journal_mode,  # type: ignore
                 connection_mode="c",  # type: ignore
             )
-            webtoon.info.default_conversion = self.info.default_conversion
 
         webtoon.connection.bypass_integrity_check = True
         webtoon.connection._configure_pragma_only = True
@@ -372,33 +358,40 @@ class Webtoon:
         with self.connection.cursor() as cur:
             cur.execute(query, params)
 
-    def _dump_conversion_value(self, conversion: ConversionIncludingRawType, value) -> str | PrimitiveType:
-        if conversion in ("json", "jsonb"):
-            value = _json_dump(value)
-        return value
+    # todo: 모두 외부 함수로 옮기기
+    def _dump_conversion_value(self, value: ValueType) -> str | PrimitiveType:
+        if isinstance(value, JsonData):
+            return value.dump()
+        else:
+            return value
 
-    def _get_conversion_query(self, conversion: ConversionIncludingRawType = None) -> tuple[ConversionType, str]:
-        match conversion:
-            case None:
-                return None, "?"
-            case "json" | "json_raw":
+    def _get_conversion_query(self, value: ValueType) -> tuple[ConversionType, str]:
+        match value:
+            case JsonData(conversion="json"):
                 return "json", "json(?)"
-            case "jsonb" | "jsonb_raw":
+            case JsonData(conversion="jsonb"):
                 return "json", "jsonb(?)"
+            case _:
+                return None, "?"
+                # raise ValueError(f"Unknown conversion: {conversion}")
+
+    def _get_conversion_query_from_conversion(self, conversion: ConversionType) -> str:
+        match conversion:
+            case "json":
+                return "json(?)"
+            case "jsonb":
+                return "jsonb(?)"
+            case None:
+                return "?"
             case _:
                 raise ValueError(f"Unknown conversion: {conversion}")
 
-    def _load_conversion_value(self, conversion: ConversionIncludingRawType, original_value: PrimitiveType) -> PrimitiveType | JsonType:
+    def _load_conversion_value(self, conversion: ConversionType, original_value: PrimitiveType) -> ValueType:
         match conversion:
             case None:
                 return original_value
             case "json" | "jsonb":
-                return json.loads(original_value)  # type: ignore
-            case "json_raw" | "jsonb_raw":
-                raise ValueError(f"Raw conversion {conversion!r} cannot be used while loading.")
-                # raw conversion은 일종의 의사 conversion이고 json으로 변환하지 않는다는 의사를 전달하고 나서는
-                # 일반적인 json conversion으로 바뀌고 사라져야 하기 때문에 raw conversion이 나타나면 ValueError를 낸다.
-                # return original_value
+                return JsonData.from_raw(original_value)  # type: ignore
             case _:
                 raise ValueError(f"Unknown conversion: {conversion}")
 

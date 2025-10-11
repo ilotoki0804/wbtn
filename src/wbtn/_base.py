@@ -6,9 +6,7 @@ from sqlite3 import sqlite_version as SQLITE_VERSION
 
 __all__ = (
     "ConnectionMode",
-    "ConversionIncludingRawType",
     "ConversionType",
-    "EPISODE_STATE",
     "EpisodeState",
     "JOURNAL_MODES",
     "JournalModes",
@@ -46,10 +44,9 @@ RestrictedPrimitiveType = str | int | bool | float
 PrimitiveType = RestrictedPrimitiveType | bytes | None
 EpisodeState = typing.Literal["exists", "downloading", "empty", "impaired"]
 ConversionType = typing.Literal["json", "jsonb"] | None
-ConversionIncludingRawType = ConversionType | typing.Literal["json_raw", "jsonb_raw"]
 
 JOURNAL_MODES = ("delete", "truncate", "persist", "memory", "wal", "off")
-EPISODE_STATE = (None, "exists", "empty", "impaired", "downloading")
+# EPISODE_STATE = (None, "exists", "empty", "impaired", "downloading")
 
 
 class WebtoonError(Exception):

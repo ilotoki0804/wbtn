@@ -11,7 +11,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from wbtn import Webtoon
 from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError
 from wbtn._webtoon_connection import version, WebtoonConnectionManager
-from wbtn._webtoon import WebtoonMedia, _json_dump
+from wbtn._webtoon import WebtoonMedia
+from wbtn._json_data import JsonData, _json_dump
 
 
 # ============ Connection and Basic Tests ============
@@ -96,11 +97,13 @@ def test_info_json_conversion(tmp_path):
     """Test storing and retrieving JSON data in info"""
     path = tmp_path / "json_info.wbtn"
     with Webtoon(path, connection_mode="n") as w:
-        w.info.default_conversion = "json"
-        w.info["metadata"] = {"tags": ["action", "comedy"], "rating": 4.5}
+        w.info["metadata"] = JsonData.from_data({"tags": ["action", "comedy"], "rating": 4.5})
 
         result = w.info["metadata"]
-        assert result == {"tags": ["action", "comedy"], "rating": 4.5}
+        # _load_conversion_value now returns a JsonData instance for json/jsonb
+        assert isinstance(result, JsonData)
+        assert not result.loaded
+        assert result.load() == {"tags": ["action", "comedy"], "rating": 4.5}
 
 
 def test_info_iteration(tmp_path):
@@ -213,16 +216,16 @@ def test_dump_conversion_value(tmp_path):
     """Test _dump_conversion_value for different conversion types"""
     path = tmp_path / "dump.wbtn"
     with Webtoon(path, connection_mode="n") as w:
-        # No conversion
-        assert w._dump_conversion_value(None, "test") == "test"
+        # No conversion: just returns the value
+        assert w._dump_conversion_value("test") == "test"
 
-        # json_raw conversion
-        result = w._dump_conversion_value("json", {"key": "value"})
+        # json conversion: must pass JsonData instance
+        result = w._dump_conversion_value(JsonData.from_data({"key": "value"}))
         assert isinstance(result, str)
         assert json.loads(result) == {"key": "value"}
 
-        # jsonb_raw conversion
-        result = w._dump_conversion_value("jsonb", [1, 2, 3])
+        # jsonb conversion
+        result = w._dump_conversion_value(JsonData.from_data([1, 2, 3], conversion="jsonb"))
         assert isinstance(result, str)
         assert json.loads(result) == [1, 2, 3]
 
@@ -237,18 +240,16 @@ def test_get_conversion_query(tmp_path):
         assert query == "?"
 
         # json conversion
-        conv, query = w._get_conversion_query("json")
-        assert conv == "json"
+        query = w._get_conversion_query_from_conversion("json")
         assert "json" in query
 
-        # json_raw conversion
-        conv, query = w._get_conversion_query("json_raw")
+        # json_raw conversion (use JsonData.from_raw)
+        conv, query = w._get_conversion_query(JsonData.from_raw(_json_dump({"key": "value"})))
         assert conv == "json"
         assert "json" in query
 
         # jsonb conversion
-        conv, query = w._get_conversion_query("jsonb")
-        assert conv == "json"
+        query = w._get_conversion_query_from_conversion("jsonb")
         assert "jsonb" in query
 
 
@@ -262,18 +263,21 @@ def test_load_conversion_value(tmp_path):
         # json conversion
         json_str = _json_dump({"key": "value"})
         result = w._load_conversion_value("json", json_str)
-        assert result == {"key": "value"}
+        # now returns a JsonData instance
+        assert isinstance(result, JsonData)
+        assert result.load() == {"key": "value"}
 
         # jsonb conversion
         result = w._load_conversion_value("jsonb", json_str)
-        assert result == {"key": "value"}
+        assert isinstance(result, JsonData)
+        assert result.load() == {"key": "value"}
 
         # Raw conversions should raise ValueError
         with pytest.raises(ValueError):
-            w._load_conversion_value("json_raw", json_str)
+            w._load_conversion_value("json_raw", json_str)  # type: ignore
 
         with pytest.raises(ValueError):
-            w._load_conversion_value("jsonb_raw", json_str)
+            w._load_conversion_value("jsonb_raw", json_str)  # type: ignore
 
 
 # ============ Episode Tests ============
@@ -365,20 +369,20 @@ def test_media_add_with_json_data(tmp_path):
     with Webtoon(path, connection_mode="n") as w:
         episode_no = w.episode.add(id="ep1", name="Ep1", state="exists")
 
-        json_data = {"type": "comment", "text": "Great episode!"}
+        json_dict = {"type": "comment", "text": "Great episode!"}
+        # pass a JsonData instance so the manager can dump it correctly
         media = w.media.add(
-            json_data,
+            JsonData.from_data(json_dict),
             episode_no=episode_no,
             media_no=1,
             purpose="comment",
-            conversion="json",
             lazy_load=False
         )
 
         assert media.media_id is not None
         # Data should be stored as JSON string
         assert isinstance(media.data, str)
-        assert json.loads(media.data) == json_data
+        assert json.loads(media.data) == json_dict
 
 
 def test_media_add_with_path(tmp_path):
@@ -584,6 +588,7 @@ def test_webtoon_migrate_non_replace_creates_new_instance(tmp_path):
     with Webtoon(src_path, connection_mode="n") as w:
         w.info["key"] = "value"
 
+        # ensure default_conversion attribute exists before migrate (new implementation uses it)
         new_w = w.migrate(str(dest_path), replace=False)
         # Should be a different object
         assert new_w is not w
@@ -646,7 +651,7 @@ def test_get_conversion_invalid_raises(tmp_path):
     path = tmp_path / "conv.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         with pytest.raises(ValueError):
-            w._get_conversion_query("xml")  # type: ignore[arg-type]
+            w._get_conversion_query_from_conversion("xml")  # type: ignore[arg-type]
 
 
 def test_absolute_and_relative_path_permissions(tmp_path):
