@@ -613,6 +613,32 @@ def test_webtoon_migrate_replace_switches_connection(tmp_path):
             assert app_id == 0x5742544e
 
 
+def test_webtoon_migrate_from_memory_to_file(tmp_path):
+    """Test migrating a ':memory:' database into a real file database"""
+    dest_path = tmp_path / "memory_migrated.wbtn"
+
+    # Create an in-memory webtoon, populate it, then migrate to a file
+    with Webtoon(":memory:", connection_mode="c") as w:
+        w.info["mem_key"] = "mem_value"
+        # add an episode and some media to ensure more data is moved
+        ep = w.episode.add(id="ep_mem", name="Memory Ep", state="exists")
+        w.media.add("mem_media", ep, 0, "image", lazy_load=False)
+
+        new_w = w.migrate(str(dest_path), replace=False)
+        # migrate should return a new Webtoon instance when replace=False
+        assert new_w is not w
+
+    # The destination file should now exist and contain migrated data
+    assert dest_path.exists()
+
+    with Webtoon(dest_path, connection_mode="r") as wm:
+        assert wm.info.get("mem_key") == "mem_value"
+        # verify episode exists
+        with wm.connection.cursor() as cur:
+            result = cur.execute("SELECT name FROM episodes WHERE id = ?", ("ep_mem",)).fetchone()
+            assert result is not None
+
+
 def test_get_conversion_invalid_raises(tmp_path):
     """Unknown conversion passed to _get_conversion_query should raise ValueError"""
     path = tmp_path / "conv.wbtn"
