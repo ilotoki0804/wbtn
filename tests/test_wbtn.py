@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from wbtn import Webtoon
 from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError
 from wbtn._webtoon_connection import version, WebtoonConnectionManager
-from wbtn._webtoon import WebtoonMedia, MediaLazyLoader, WebtoonInfoManager, _json_dump
+from wbtn._webtoon import WebtoonMedia, _json_dump
 
 
 # ============ Connection and Basic Tests ============
@@ -702,3 +702,46 @@ def test_execute_context_manager_and_timestamp_monotonic(tmp_path):
         t1 = w.connection.timestamp()
         t2 = w.connection.timestamp()
         assert t2 >= t1
+
+
+def test_memory_connection_mode_validation():
+    """Opening an in-memory database with non-'c' modes should raise"""
+    # Only 'c' is allowed for in-memory databases according to implementation
+    with pytest.raises(Exception):
+        with Webtoon(":memory:", connection_mode="n"):
+            pass
+
+
+def test_info_get_conversion_missing_key_raises(tmp_path):
+    path = tmp_path / "get_conv_missing.wbtn"
+    with Webtoon(path, connection_mode="n") as w:
+        with pytest.raises(KeyError):
+            w.info.get_conversion("no_such_key")
+
+
+def test_replace_config_on_non_mediawithid_raises(tmp_path):
+    path = tmp_path / "replacecfg.wbtn"
+    with Webtoon(path, connection_mode="n") as w:
+        ep = w.episode.add(id="ep1", name="Ep1", state="exists")
+        # add returns a WebtoonMedia.Media (not MediaWithId) when lazy_load=False
+        media = w.media.add("data", ep, 0, "image", lazy_load=False)
+        with pytest.raises(ValueError):
+            media.replace_config()
+
+
+def test_media_from_id_not_found_raises(tmp_path):
+    path = tmp_path / "missing_media.wbtn"
+    with Webtoon(path, connection_mode="n") as w:
+        with pytest.raises(ValueError):
+            WebtoonMedia.media_from_id(9999999, w, is_lazy=False)
+
+
+def test_media_added_at_is_datetime(tmp_path):
+    path = tmp_path / "added_at.wbtn"
+    with Webtoon(path, connection_mode="n") as w:
+        ep = w.episode.add(id="ep1", name="Ep1", state="exists")
+        media = w.media.add("d", ep, 0, "image", lazy_load=False)
+        # added_at should be converted to datetime by media_from_id
+        assert hasattr(media, "added_at")
+        import datetime as _dt
+        assert isinstance(media.added_at, _dt.datetime)
