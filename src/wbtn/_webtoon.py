@@ -431,6 +431,29 @@ class MediaLazyLoader(typing.Generic[T]):
         return data
 
 
+@dataclass(slots=True)
+class WebtoonEpisode:
+    episode_no: int
+    name: str
+    state: PrimitiveType
+    episode_id: PrimitiveType
+    added_at: datetime.datetime
+
+    @classmethod
+    def from_episode_no(cls, episode_no: int, cursor: sqlite3.Cursor):
+        result = cursor.execute("SELECT name, state, id, added_at FROM episodes WHERE episode_no == ?", (episode_no,)).fetchone()
+        if result is None:
+            raise ValueError(f"An episode having {episode_no = } does not exist.")
+        name, state, episode_id, added_at = result
+        return cls(
+            episode_no,
+            name,
+            state,
+            episode_id,
+            fromtimestamp(added_at),
+        )
+
+
 @fieldenum
 class WebtoonMedia:
     # fieldenum은 기본적으로 __dict__를 지원해주지 않기 때문에 MediaWithId에서 캐싱을 적용하려고 할 때는 직접 선언해야 함

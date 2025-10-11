@@ -43,7 +43,8 @@ ConnectionMode = typing.Literal["r", "w", "c", "n"]
 JsonType = typing.Any
 RestrictedPrimitiveType = str | int | bool | float
 PrimitiveType = RestrictedPrimitiveType | bytes | None
-EpisodeState = typing.Literal["exists", "downloading", "empty", "impaired"]
+# EpisodeState = typing.Literal["exists", "downloading", "empty", "impaired"]
+EpisodeState = str
 ConversionType = typing.Literal["json", "jsonb"] | None
 
 JOURNAL_MODES = ("delete", "truncate", "persist", "memory", "wal", "off")
