@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from wbtn import Webtoon
-from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError
+from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError, fromtimestamp, timestamp
 from wbtn._webtoon_connection import version, WebtoonConnectionManager
 from wbtn._webtoon import WebtoonMedia
 from wbtn._json_data import JsonData, _json_dump
@@ -553,12 +553,12 @@ def test_connection_timestamp(tmp_path):
     """Test timestamp generation and conversion"""
     path = tmp_path / "timestamp.wbtn"
     with Webtoon(path, connection_mode="n") as w:
-        ts = w.connection.timestamp()
-        assert isinstance(ts, int)
+        ts = timestamp()
+        assert isinstance(ts, float)
         assert ts > 0
 
         # Convert back to datetime
-        dt = WebtoonConnectionManager.fromtimestamp(ts)
+        dt = fromtimestamp(ts)
         import datetime
         assert isinstance(dt, datetime.datetime)
 
@@ -725,15 +725,15 @@ def test_file_user_version_setter_readonly_raises(tmp_path):
 
 
 def test_execute_context_manager_and_timestamp_monotonic(tmp_path):
-    """Test Webtoon.execute context manager and that timestamp is monotonic"""
+    """Test Webtoon.execute context is monotonic"""
     path = tmp_path / "exec.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         with w.execute_with("SELECT 1", ()) as cur:
             row = cur.fetchone()
             assert row[0] == 1
 
-        t1 = w.connection.timestamp()
-        t2 = w.connection.timestamp()
+        t1 = timestamp()
+        t2 = timestamp()
         assert t2 >= t1
 
 

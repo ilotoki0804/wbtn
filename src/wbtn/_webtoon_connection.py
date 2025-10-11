@@ -8,7 +8,7 @@ import warnings
 from contextlib import closing, contextmanager
 from pathlib import Path
 
-from ._base import JOURNAL_MODES, ConnectionMode, JournalModes, WebtoonOpenError, WebtoonSchemaError
+from ._base import JOURNAL_MODES, ConnectionMode, JournalModes, WebtoonOpenError, WebtoonSchemaError, timestamp
 from ._base import SCHEMA_VERSION as user_version
 from ._base import VERSION as version
 
@@ -62,13 +62,6 @@ class WebtoonConnectionManager:
         # return closing(self.conn.cursor())
         with self.conn, closing(self.conn.cursor()) as cur:
             yield cur
-
-    def timestamp(self) -> int:
-        return int(datetime.datetime.now().timestamp() * 1000)
-
-    @staticmethod
-    def fromtimestamp(timestamp: int) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(timestamp / 1000)
 
     @property
     def file_user_version(self) -> int:
@@ -244,7 +237,7 @@ class WebtoonConnectionManager:
 
     def _add_infos(self):
         with self.cursor() as cur:
-            current_time = self.timestamp()
+            current_time = timestamp()
             if not self.existed:
                 cur.execute("""
                     INSERT INTO info (name, conversion, value) VALUES

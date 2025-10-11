@@ -15,6 +15,8 @@ from ._base import (
     EpisodeState,
     JournalModes,
     PrimitiveType,
+    fromtimestamp,
+    timestamp,
 )
 from ._webtoon_connection import WebtoonConnectionManager
 from ._json_data import JsonData
@@ -152,7 +154,7 @@ class WebtoonEpisodeManager:
         with self.webtoon.connection.cursor() as cur:
             real_episode_no, = cur.execute(
                 """INSERT INTO episodes (episode_no, state, name, id, added_at) VALUES (?, ?, ?, ?, ?) RETURNING episode_no""",
-                (episode_no, state, name, id, self.webtoon.connection.timestamp())
+                (episode_no, state, name, id, timestamp())
             ).fetchone()
         return real_episode_no
 
@@ -242,7 +244,7 @@ class WebtoonMediaManger:
             # data를 직접 변형하니 get_conversion보다 먼저 오게 되어 값을 왜곡시키지 않도록 주의하기.
             data = self.webtoon._dump_conversion_value(data)
 
-            current_time = self.webtoon.connection.timestamp()
+            current_time = timestamp()
             media_id, = cur.execute(
                 f"""INSERT INTO media (
                     episode_no,
@@ -445,7 +447,7 @@ class WebtoonMedia:
     conversion = MediaLazyLoader[ConversionType]("conversion")
     path = MediaLazyLoader[str | None]("path")
     data = MediaLazyLoader[str | None]("data")
-    added_at = MediaLazyLoader[datetime.datetime]("added_at", loader=WebtoonConnectionManager.fromtimestamp)
+    added_at = MediaLazyLoader[datetime.datetime]("added_at", loader=fromtimestamp)
 
     MediaWithId = Variant(
         media_id=int,
@@ -523,5 +525,5 @@ class WebtoonMedia:
                 conversion=conversion,
                 path=path and Path(path),
                 data=data,
-                added_at=WebtoonConnectionManager.fromtimestamp(added_at),
+                added_at=fromtimestamp(added_at),
             )

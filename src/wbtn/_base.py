@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import typing
 import warnings
 from sqlite3 import sqlite_version as SQLITE_VERSION
@@ -47,6 +48,14 @@ ConversionType = typing.Literal["json", "jsonb"] | None
 
 JOURNAL_MODES = ("delete", "truncate", "persist", "memory", "wal", "off")
 # EPISODE_STATE = (None, "exists", "empty", "impaired", "downloading")
+
+
+def timestamp() -> float:
+    return datetime.datetime.now().timestamp()
+
+
+def fromtimestamp(timestamp: float) -> datetime.datetime:
+    return datetime.datetime.fromtimestamp(timestamp)
 
 
 class WebtoonError(Exception):
