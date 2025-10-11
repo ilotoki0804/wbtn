@@ -404,9 +404,16 @@ class Webtoon:
 
 
 class MediaLazyLoader(typing.Generic[T]):
-    def __init__(self, name: str, data_processor: typing.Callable[..., T] | None = None) -> None:
+    def __init__(
+        self,
+        name: str,
+        *,
+        loader: typing.Callable[..., T] | None = None,
+        serializer: typing.Callable[[T], PrimitiveType] | None = None,
+    ) -> None:
         self.name = name
-        self.data_processor = data_processor
+        self.loader = loader
+        self.serializer = serializer
 
     def __get__(self, media, obj_type=None) -> T:
         try:
@@ -422,8 +429,8 @@ class MediaLazyLoader(typing.Generic[T]):
         if result is None:
             raise ValueError(f"Can't find media that have media_id == {media.media_id}.")
         data = result[0]
-        if self.data_processor:
-            data = self.data_processor(data)
+        if self.loader:
+            data = self.loader(data)
         if media._cache_results:
             setattr(media, name, data)
         return data
@@ -445,7 +452,7 @@ class WebtoonMedia:
     conversion = MediaLazyLoader[ConversionType]("conversion")
     path = MediaLazyLoader[str | None]("path")
     data = MediaLazyLoader[str | None]("data")
-    added_at = MediaLazyLoader[datetime.datetime]("added_at", WebtoonConnectionManager.fromtimestamp)
+    added_at = MediaLazyLoader[datetime.datetime]("added_at", loader=WebtoonConnectionManager.fromtimestamp)
 
     MediaWithId = Variant(
         media_id=int,
