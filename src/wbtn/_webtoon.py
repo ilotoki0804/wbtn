@@ -20,6 +20,7 @@ from ._base import (
 )
 from ._webtoon_connection import WebtoonConnectionManager
 from ._json_data import JsonData
+from .conversion import dump_value, get_conversion_and_query, get_query, load_value
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath as Pathlike
@@ -71,19 +72,19 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
             else:
                 return default
         conversion, value = result
-        value = self.webtoon._load_conversion_value(conversion, value)
+        value = load_value(conversion, value)
         return value
 
     def items(self) -> typing.Iterator[tuple[str, ValueType]]:
         with self.webtoon.connection.cursor() as cur:
             for name, conversion, value in cur.execute(f"SELECT name, conversion, {GET_VALUE} FROM info"):
-                value = self.webtoon._load_conversion_value(conversion, value)
+                value = load_value(conversion, value)
                 yield name, value
 
     def values(self) -> typing.Iterator[ValueType]:
         with self.webtoon.connection.cursor() as cur:
             for conversion, value in cur.execute(f"SELECT conversion, {GET_VALUE} FROM info"):
-                value = self.webtoon._load_conversion_value(conversion, value)
+                value = load_value(conversion, value)
                 yield value
 
     def clear(self, delete_system: bool = False) -> None:
@@ -111,18 +112,18 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
             else:
                 return default
         conversion, value = result
-        value = self.webtoon._load_conversion_value(conversion, value)
+        value = load_value(conversion, value)
         return value
 
     def set(self, name: str, value: ValueType) -> None:
         # value가 변경되는 순서에 유의하기
-        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
+        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
 
     def setdefault(self, name: str, value: ValueType) -> None:
         # value가 변경되는 순서에 유의하기
-        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
+        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
         with self.webtoon.connection.cursor() as cur:
             try:
                 cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
@@ -160,7 +161,7 @@ class WebtoonEpisodeManager:
 
     def add_extra_data(self, episode_no: int, purpose: str, value: PrimitiveType | JsonData):
         # value가 변경되는 순서에 유의하기
-        conversion, query, value = *self.webtoon._get_conversion_query(value), self.webtoon._dump_conversion_value(value)
+        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(
                 f"""INSERT INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",
@@ -238,11 +239,11 @@ class WebtoonMediaManger:
             # 다행히도 json() 함수와 jsonb() 함수 모두 NULL을 받았을 때 NULL을 리턴해서
             # path가 주어진 상황에서도 문제 없이 처리 가능함.
             if conversion:
-                query = self.webtoon._get_conversion_query_from_conversion(conversion)
+                query = get_query(conversion)
             else:
-                conversion, query = self.webtoon._get_conversion_query(data)
+                conversion, query = get_conversion_and_query(data)
             # data를 직접 변형하니 get_conversion보다 먼저 오게 되어 값을 왜곡시키지 않도록 주의하기.
-            data = self.webtoon._dump_conversion_value(data)
+            data = dump_value(data)
 
             current_time = timestamp()
             media_id, = cur.execute(
@@ -359,43 +360,6 @@ class Webtoon:
     def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> None:
         with self.connection.cursor() as cur:
             cur.execute(query, params)
-
-    # todo: 모두 외부 함수로 옮기기
-    def _dump_conversion_value(self, value: ValueType) -> str | PrimitiveType:
-        if isinstance(value, JsonData):
-            return value.dump()
-        else:
-            return value
-
-    def _get_conversion_query(self, value: ValueType) -> tuple[ConversionType, str]:
-        match value:
-            case JsonData(conversion="json"):
-                return "json", "json(?)"
-            case JsonData(conversion="jsonb"):
-                return "json", "jsonb(?)"
-            case _:
-                return None, "?"
-                # raise ValueError(f"Unknown conversion: {conversion}")
-
-    def _get_conversion_query_from_conversion(self, conversion: ConversionType) -> str:
-        match conversion:
-            case "json":
-                return "json(?)"
-            case "jsonb":
-                return "jsonb(?)"
-            case None:
-                return "?"
-            case _:
-                raise ValueError(f"Unknown conversion: {conversion}")
-
-    def _load_conversion_value(self, conversion: ConversionType, original_value: PrimitiveType) -> ValueType:
-        match conversion:
-            case None:
-                return original_value
-            case "json" | "jsonb":
-                return JsonData.from_raw(original_value)  # type: ignore
-            case _:
-                raise ValueError(f"Unknown conversion: {conversion}")
 
 
 class MediaLazyLoader(typing.Generic[T]):

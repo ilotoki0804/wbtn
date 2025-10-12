@@ -13,6 +13,7 @@ from wbtn._base import WebtoonError, WebtoonOpenError, WebtoonSchemaError, fromt
 from wbtn._webtoon_connection import version, WebtoonConnectionManager
 from wbtn._webtoon import WebtoonMedia
 from wbtn._json_data import JsonData, _json_dump
+from wbtn.conversion import dump_value, get_conversion_and_query, get_query, load_value
 
 
 # ============ Connection and Basic Tests ============
@@ -217,15 +218,15 @@ def test_dump_conversion_value(tmp_path):
     path = tmp_path / "dump.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         # No conversion: just returns the value
-        assert w._dump_conversion_value("test") == "test"
+        assert dump_value("test") == "test"
 
         # json conversion: must pass JsonData instance
-        result = w._dump_conversion_value(JsonData.from_data({"key": "value"}))
+        result = dump_value(JsonData.from_data({"key": "value"}))
         assert isinstance(result, str)
         assert json.loads(result) == {"key": "value"}
 
         # jsonb conversion
-        result = w._dump_conversion_value(JsonData.from_data([1, 2, 3], conversion="jsonb"))
+        result = dump_value(JsonData.from_data([1, 2, 3], conversion="jsonb"))
         assert isinstance(result, str)
         assert json.loads(result) == [1, 2, 3]
 
@@ -235,21 +236,21 @@ def test_get_conversion_query(tmp_path):
     path = tmp_path / "query.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         # None conversion
-        conv, query = w._get_conversion_query(None)
+        conv, query = get_conversion_and_query(None)
         assert conv is None
         assert query == "?"
 
         # json conversion
-        query = w._get_conversion_query_from_conversion("json")
+        query = get_query("json")
         assert "json" in query
 
         # json_raw conversion (use JsonData.from_raw)
-        conv, query = w._get_conversion_query(JsonData.from_raw(_json_dump({"key": "value"})))
+        conv, query = get_conversion_and_query(JsonData.from_raw(_json_dump({"key": "value"})))
         assert conv == "json"
         assert "json" in query
 
         # jsonb conversion
-        query = w._get_conversion_query_from_conversion("jsonb")
+        query = get_query("jsonb")
         assert "jsonb" in query
 
 
@@ -258,26 +259,26 @@ def test_load_conversion_value(tmp_path):
     path = tmp_path / "load.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         # No conversion
-        assert w._load_conversion_value(None, "plain") == "plain"
+        assert load_value(None, "plain") == "plain"
 
         # json conversion
         json_str = _json_dump({"key": "value"})
-        result = w._load_conversion_value("json", json_str)
+        result = load_value("json", json_str)
         # now returns a JsonData instance
         assert isinstance(result, JsonData)
         assert result.load() == {"key": "value"}
 
         # jsonb conversion
-        result = w._load_conversion_value("jsonb", json_str)
+        result = load_value("jsonb", json_str)
         assert isinstance(result, JsonData)
         assert result.load() == {"key": "value"}
 
         # Raw conversions should raise ValueError
         with pytest.raises(ValueError):
-            w._load_conversion_value("json_raw", json_str)  # type: ignore
+            load_value("json_raw", json_str)  # type: ignore
 
         with pytest.raises(ValueError):
-            w._load_conversion_value("jsonb_raw", json_str)  # type: ignore
+            load_value("jsonb_raw", json_str)  # type: ignore
 
 
 # ============ Episode Tests ============
@@ -651,7 +652,7 @@ def test_get_conversion_invalid_raises(tmp_path):
     path = tmp_path / "conv.wbtn"
     with Webtoon(path, connection_mode="n") as w:
         with pytest.raises(ValueError):
-            w._get_conversion_query_from_conversion("xml")  # type: ignore[arg-type]
+            get_query("xml")  # type: ignore[arg-type]
 
 
 def test_absolute_and_relative_path_permissions(tmp_path):
