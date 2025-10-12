@@ -322,7 +322,7 @@ class Webtoon:
         # delete_old_file: bool = False,
     ) -> typing.Self:
         # OperationalError: output file already exists가 발생할 수 있음.
-        self.execute("VACUUM INTO ?", (new_path,))
+        self.execute("VACUUM INTO ?", (str(new_path),))
         self.connection.__exit__(None, None, None)
         original_bypass = self.connection.bypass_integrity_check
         if replace:
@@ -501,6 +501,9 @@ class WebtoonMedia:
         path=str | None,
         data=str | None,
     ).default(state=None, media_type=None, conversion=None, name=None)
+
+    # def apply(self, webtoon: Webtoon):
+    #     """데이터가 수정되었을 경우 수정된 값을 반영합니다."""
 
     def replace_config(
         self,
