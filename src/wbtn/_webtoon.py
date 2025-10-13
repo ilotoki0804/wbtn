@@ -20,7 +20,7 @@ from ._base import (
 )
 from ._webtoon_connection import WebtoonConnectionManager
 from ._json_data import JsonData
-from .conversion import dump_value, get_conversion_and_query, get_query, load_value
+from .conversion import load_value, get_conversion_query_value
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath as Pathlike
@@ -116,14 +116,12 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
         return value
 
     def set(self, name: str, value: ValueType) -> None:
-        # value가 변경되는 순서에 유의하기
-        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
+        conversion, query, value = get_conversion_query_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
 
     def setdefault(self, name: str, value: ValueType) -> None:
-        # value가 변경되는 순서에 유의하기
-        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
+        conversion, query, value = get_conversion_query_value(value)
         with self.webtoon.connection.cursor() as cur:
             try:
                 cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
@@ -160,8 +158,7 @@ class WebtoonEpisodeManager:
         return real_episode_no
 
     def add_extra_data(self, episode_no: int, purpose: str, value: PrimitiveType | JsonData):
-        # value가 변경되는 순서에 유의하기
-        conversion, query, value = *get_conversion_and_query(value), dump_value(value)
+        conversion, query, value = get_conversion_query_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(
                 f"""INSERT INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",
@@ -239,11 +236,9 @@ class WebtoonMediaManger:
             # 다행히도 json() 함수와 jsonb() 함수 모두 NULL을 받았을 때 NULL을 리턴해서
             # path가 주어진 상황에서도 문제 없이 처리 가능함.
             if conversion:
-                query = get_query(conversion)
+                conversion, query, data = get_conversion_query_value(data, conversion)
             else:
-                conversion, query = get_conversion_and_query(data)
-            # data를 직접 변형하니 get_conversion보다 먼저 오게 되어 값을 왜곡시키지 않도록 주의하기.
-            data = dump_value(data)
+                conversion, query, data = get_conversion_query_value(data)
 
             current_time = timestamp()
             media_id, = cur.execute(
@@ -357,9 +352,9 @@ class Webtoon:
         with self.connection.cursor() as cur:
             yield cur.execute(query, params)
 
-    def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> None:
+    def execute(self, query: typing.LiteralString, params: sqlite3._Parameters = ()) -> typing.Any:
         with self.connection.cursor() as cur:
-            cur.execute(query, params)
+            return cur.execute(query, params).fetchone()
 
 
 class MediaLazyLoader(typing.Generic[T]):
