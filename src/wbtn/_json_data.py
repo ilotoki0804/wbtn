@@ -8,6 +8,11 @@ from ._base import JsonType
 
 __all__ = ("JsonData",)
 
+if typing.TYPE_CHECKING:
+    ResultType = typing.TypeVar("ResultType", covariant=True, default="JsonData")
+else:
+    ResultType = typing.TypeVar("T", covariant=True)
+
 _json_encoder = json.JSONEncoder(ensure_ascii=False, separators=(",", ":"))
 
 
@@ -15,7 +20,7 @@ def _json_dump(data: JsonType) -> str:
     return _json_encoder.encode(data)
 
 
-class JsonData:
+class JsonData(typing.Generic[ResultType]):
     @typing.overload
     def __init__(
         self,
@@ -27,13 +32,13 @@ class JsonData:
     def __init__(
         self,
         *,
-        data: JsonType | None = None,
+        data: ResultType | None = None,
         conversion: typing.Literal["json", "jsonb"] = "json",
     ): ...
     def __init__(
         self,
         *,
-        data: JsonType | None = None,
+        data: ResultType | None = None,
         raw: str | None = None,
         conversion: typing.Literal["json", "jsonb"] = "json",
     ):
@@ -54,11 +59,11 @@ class JsonData:
         return self.load() == other.load()
 
     @classmethod
-    def from_data(cls, data: JsonType, conversion: typing.Literal["json", "jsonb"] = "json"):
+    def from_data(cls, data: ResultType, conversion: typing.Literal["json", "jsonb"] = "json") -> typing.Self:  # type: ignore # 이 경우에는 바로 클래스를 만들러 가는 길이기 때문에 파라미터에 ResultType이 들어가도 괜찮음
         return cls(data=data, conversion=conversion)
 
     @classmethod
-    def from_raw(cls, raw: str, conversion: typing.Literal["json", "jsonb"] = "json"):
+    def from_raw(cls, raw: str, conversion: typing.Literal["json", "jsonb"] = "json") -> typing.Self:
         return cls(raw=raw, conversion=conversion)
 
     def dump(self, *, store_raw: bool = False) -> str:
@@ -72,12 +77,12 @@ class JsonData:
         else:
             return self._raw
 
-    def load(self, copy: bool = False, *, store_data: bool = False) -> JsonType:
+    def load(self, copy: bool = False, *, store_data: bool = False) -> ResultType:
         if self._raw is None:
             if copy:
-                return deepcopy(self._data)
+                return deepcopy(self._data)  # type: ignore
             else:
-                return self._data
+                return self._data  # type: ignore
         else:
             result = json.loads(self._raw)
             if store_data:
@@ -89,8 +94,8 @@ class JsonData:
         return self._raw is None
 
     @property
-    def stored(self) -> str | JsonType:
-        return self._data if self._raw is None else self._raw
+    def stored(self) -> str | ResultType:
+        return self._data if self._raw is None else self._raw  # type: ignore
 
 
 # sqlite3.register_adapter(JsonData, JsonData.load)
