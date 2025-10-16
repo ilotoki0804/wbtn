@@ -258,7 +258,7 @@ class WebtoonMediaManger:
             ).fetchone()
             return WebtoonMedia.media_from_id(media_id, self.webtoon, is_lazy=lazy_load)
 
-    def get_matched_media(
+    def iterate(
         self,
         episode_no: int | None,
         purpose: str | None = None,

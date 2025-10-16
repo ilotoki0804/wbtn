@@ -422,11 +422,11 @@ def test_media_get_matched(tmp_path):
         w.media.add("comment", episode_no, 2, "comment", lazy_load=False)
 
         # Get all media for episode
-        all_media = list(w.media.get_matched_media(episode_no=episode_no))
+        all_media = list(w.media.iterate(episode_no=episode_no))
         assert len(all_media) == 3
 
         # Get only images
-        images = list(w.media.get_matched_media(episode_no=episode_no, purpose="image"))
+        images = list(w.media.iterate(episode_no=episode_no, purpose="image"))
         assert len(images) == 2
 
 
