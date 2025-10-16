@@ -9,7 +9,7 @@ from ._base import JsonType
 __all__ = ("JsonData",)
 
 if typing.TYPE_CHECKING:
-    ResultType = typing.TypeVar("ResultType", covariant=True, default="JsonData")
+    ResultType = typing.TypeVar("ResultType", covariant=True, default="typing.Any")
 else:
     ResultType = typing.TypeVar("T", covariant=True)
 
