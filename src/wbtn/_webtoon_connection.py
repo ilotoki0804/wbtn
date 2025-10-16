@@ -205,7 +205,7 @@ class WebtoonConnectionManager:
                 episode_no INTEGER PRIMARY KEY NOT NULL,
                 name TEXT,
                 state,
-                id,
+                id UNIQUE,
                 added_at TIMESTAMP NOT NULL
             )""")
             cur.execute("""CREATE TABLE IF NOT EXISTS episodes_extra (
@@ -225,11 +225,18 @@ class WebtoonConnectionManager:
                 media_type TEXT,
                 name TEXT,
                 conversion TEXT,
-                path TEXT,
+                path,
                 data,
                 added_at TIMESTAMP NOT NULL,
                 UNIQUE (episode_no, media_no, purpose) ON CONFLICT ABORT,
                 FOREIGN KEY(episode_no) REFERENCES episodes(episode_no) ON DELETE CASCADE ON UPDATE CASCADE
+            )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS extra_files (
+                id INTEGER PRIMARY KEY NOT NULL,
+                purpose TEXT,
+                path UNIQUE NOT NULL,
+                data BLOB,
+                added_at TIMESTAMP NOT NULL
             )""")
             # cur.execute("CREATE INDEX episodes_idx ON episodes (state, added_at)")
             # cur.execute("CREATE INDEX episodes_extra_idx ON episodes_extra (episode_no, purpose, conversion, value)")
