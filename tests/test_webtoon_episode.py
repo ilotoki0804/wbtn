@@ -12,15 +12,15 @@ from wbtn._webtoon import WebtoonEpisode
 
 def test_webtoon_episode_from_episode_no(tmp_path):
     path = tmp_path / "episode_from_no.wbtn"
-    with Webtoon(path, connection_mode="n") as w:
-        ep_no = w.episode.add(id="epX", name="Episode X", state="published")
+    with Webtoon(path) as webtoon:
+        ep_no = webtoon.episode.add(id=123, name="Hello World Episode", state="downloaded")
         # use cursor to fetch episode via classmethod
-        with w.connection.cursor() as cur:
+        with webtoon.connection.cursor() as cur:
             episode = WebtoonEpisode.from_episode_no(ep_no, cur)
 
         assert episode.episode_no == ep_no
-        assert episode.name == "Episode X"
-        assert episode.state == "published"
-        assert episode.episode_id == "epX"
+        assert episode.name == "Hello World Episode"
+        assert episode.state == "downloaded"
+        assert episode.episode_id == 123
         # added_at should be a datetime
         assert isinstance(episode.added_at, datetime.datetime)
