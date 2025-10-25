@@ -241,6 +241,7 @@ class WebtoonMediaManger:
         result = load_bytes_value(data.conversion, data.path.read_bytes())
         if store_data:
             data.path = None
+            data.conversion = None
             data.data = result
             self.set(data)
         return result
