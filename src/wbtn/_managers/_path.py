@@ -169,7 +169,7 @@ class WebtoonPathManager:
             return self.file_base_path()
 
         if path.is_absolute():
-            if self.fallback_base_path:
+            if not self.fallback_base_path:
                 raise WebtoonPathInitializationError("Suggested base directory is an absolute path", "SUGGESTED_BASE_PATH_ABSOLUTE")
             return self.file_base_path()
 
@@ -177,7 +177,7 @@ class WebtoonPathManager:
         try:
             path.resolve().relative_to(file_folder.resolve())
         except ValueError as exc:
-            if self.fallback_base_path:
+            if not self.fallback_base_path:
                 raise WebtoonPathInitializationError("Suggested base directory is not a subtree of webtoon file's folder", "SUGGESTED_BASE_PATH_NOT_CHILD") from exc
             return file_folder
         else:

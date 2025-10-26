@@ -111,10 +111,12 @@ class WebtoonConnectionManager:
             # file::memory:?mode=...으로 모드를 설정할 수 있기는 하나 별로 쓸모는 없기에 그냥 다른 모드는 사용하지 못하도록 함.
             if self.settings.read_only:
                 raise WebtoonOpenError(
-                    "cannot set read_only when writing at memory."
+                    "Cannot set read_only when writing at memory."
                 )
             if not self.settings.create_db:
-                raise WebtoonOpenError()
+                raise WebtoonOpenError(
+                    "Memory database need to be created. Invalid flag."
+                )
             self.in_memory = True
             self.existed = False
             self._conn = sqlite3.connect(":memory:")
