@@ -13,7 +13,6 @@ from .._base import (
     timestamp,
 )
 from .._json_data import JsonData
-from ..conversion import load_value, get_conversion_query_value
 from .._base import WebtoonType
 
 __all__ = ("WebtoonEpisodeManager", "WebtoonEpisode")
@@ -62,7 +61,7 @@ class WebtoonEpisode(typing.MutableMapping[str, ValueType]):
             # 옛날 코드의 잔재라 없애려면 없애도 될 듯
             with self.webtoon.execute_with("SELECT purpose, conversion, value FROM episodes_extra WHERE episode_no == ?", (self.episode_no,)) as cur:
                 return {
-                    purpose: load_value(conversion, value)
+                    purpose: self.webtoon.value.load(conversion, value)
                     for purpose, conversion, value
                     in cur
                 }
@@ -71,10 +70,10 @@ class WebtoonEpisode(typing.MutableMapping[str, ValueType]):
             if result is None:
                 raise KeyError(purpose)
             conversion, value = result
-            return load_value(conversion, value)
+            return self.webtoon.value.load(conversion, value)
 
     def __setitem__(self, purpose: str, value: ValueType) -> None:
-        conversion, query, value = get_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
         try:
             self.webtoon.execute(
                 f"""INSERT OR REPLACE INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",

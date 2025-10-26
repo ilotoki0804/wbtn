@@ -15,7 +15,6 @@ from .._base import (
 )
 from ._episode import WebtoonEpisode
 from .._json_data import JsonData
-from ..conversion import dump_bytes_value, get_primitive_conversion, load_bytes_value, get_conversion_query_value, load_value
 from .._base import WebtoonType
 
 __all__ = ("WebtoonMediaManger", "WebtoonMediaData", "WebtoonMedia")
@@ -54,14 +53,14 @@ class WebtoonMediaManger:
         else:
             if mkdir:
                 path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(dump_bytes_value(data))
+            path.write_bytes(self.webtoon.value.dump_bytes(data))
             try:
                 result = self.add(
                     path,
                     episode=episode,
                     media_no=media_no,
                     purpose=purpose,
-                    conversion=conversion or get_primitive_conversion(data),
+                    conversion=conversion or self.webtoon.value.get_primitive_conversion(data),
                     state=state,
                     media_type=media_type,
                     media_name=media_name,
@@ -124,12 +123,7 @@ class WebtoonMediaManger:
                 if conversion:
                     raise ValueError("conversion cannot be provided directly through conversion parameter.")
 
-            # 다행히도 json() 함수와 jsonb() 함수 모두 NULL을 받았을 때 NULL을 리턴해서
-            # path가 주어진 상황에서도 문제 없이 처리 가능함.
-            if conversion:
-                conversion, query, data = get_conversion_query_value(data, conversion)
-            else:
-                conversion, query, data = get_conversion_query_value(data)
+            conversion, query, data = self.webtoon.value.dump_conversion_query_value(data, conversion)
 
             current_time = timestamp()
             media_id, = cur.execute(
@@ -155,12 +149,13 @@ class WebtoonMediaManger:
             raise KeyError(media)
 
     def set(self, media: WebtoonMediaData) -> None:
-        if (media.conversion is None) != (media.path is None):
-            raise ValueError("Both path and conversion should be provided.")
+        # path가 있으면 conversion도 있어야 함
+        if media.path is not None and media.conversion is None:
+            raise ValueError("conversion is required when path is provided.")
         if media.path is not None and media.data is not None:
             raise ValueError("Only data or path should be provided.")
 
-        conversion, query, data = get_conversion_query_value(media.data)
+        conversion, query, data = self.webtoon.value.dump_conversion_query_value(media.data)
         result = self.webtoon.execute(f"""
             UPDATE media
             SET
@@ -214,7 +209,7 @@ class WebtoonMediaManger:
             name=name,
             conversion=conversion,
             path=path and self.webtoon.path.load(path),
-            data=load_value(conversion, data),
+            data=self.webtoon.value.load(conversion, data),
             added_at=fromtimestamp(added_at),
         )
 
@@ -239,7 +234,7 @@ class WebtoonMediaManger:
         data = media.load()
         if data.path is None:
             return data.data
-        result = load_bytes_value(data.conversion, data.path.read_bytes())
+        result = self.webtoon.value.load_bytes(data.conversion, data.path.read_bytes())
         if store_data:
             data.path = None
             data.conversion = None
@@ -255,10 +250,10 @@ class WebtoonMediaManger:
             if data.conversion:
                 conversion = data.conversion
             else:
-                conversion = get_primitive_conversion(data.data)
+                conversion = self.webtoon.value.get_primitive_conversion(data.data)
 
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(dump_bytes_value(data.data))
+            path.write_bytes(self.webtoon.value.dump_bytes(data.data))
             data.data, data.path, data.conversion = None, path, conversion
             self.set(data)
 
@@ -274,7 +269,7 @@ class WebtoonMediaData:
     state: EpisodeState
     conversion: ConversionType
     path: Path | None
-    data: PrimitiveType | JsonData | None
+    data: ValueType
     added_at: datetime.datetime
     _webtoon: WebtoonType | None = None
 

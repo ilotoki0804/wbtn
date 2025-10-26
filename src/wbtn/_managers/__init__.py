@@ -1,4 +1,5 @@
 from ._connection import *
+from ._conversion import *
 from ._episode import *
 from ._extra_file import *
 from ._info import *
@@ -17,4 +18,5 @@ __all__ = (
     'WebtoonMediaData',
     'WebtoonMediaManger',
     'WebtoonPathManager',
+    'WebtoonValue',
 )

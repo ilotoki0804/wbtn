@@ -10,7 +10,6 @@ from ._base import (
     ValueType,
 )
 from ._managers import *
-from .conversion import dump_bytes_value, get_primitive_conversion, load_bytes_value, load_value, get_conversion_query_value
 
 if typing.TYPE_CHECKING:
     from _typeshed import StrOrBytesPath as Pathlike
@@ -31,6 +30,7 @@ class Webtoon:
         "media",
         "extra_file",
         "path",
+        "value",
     )
 
     def __init__(
@@ -46,7 +46,7 @@ class Webtoon:
         self.episode = WebtoonEpisodeManager(self)
         self.media = WebtoonMediaManger(self)
         self.extra_file = WebtoonExtraFileManager(self)
-
+        self.value = WebtoonValue(self)
         self.path = WebtoonPathManager(self)
 
     def __enter__(self):

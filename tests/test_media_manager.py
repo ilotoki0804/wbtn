@@ -466,13 +466,13 @@ def test_set_media_path_without_conversion_raises(webtoon_instance: Webtoon):
     media_data.path = Path("/some/path.jpg")
     media_data.conversion = None
 
-    with pytest.raises(ValueError, match="Both path and conversion"):
+    with pytest.raises(ValueError, match="conversion is required"):
         webtoon_instance.media.set(media_data)
 
 
-def test_set_media_conversion_without_path_raises(webtoon_instance: Webtoon):
-    """conversion이 있는데 path가 없으면 ValueError"""
-    episode = webtoon_instance.episode.add(id=22, name="Set Error Test 2")
+def test_set_media_conversion_without_path_is_valid(webtoon_instance: Webtoon):
+    """conversion이 있고 path가 없는 것은 유효함 (data를 직접 저장하는 경우)"""
+    episode = webtoon_instance.episode.add(id=22, name="Set Valid Test")
 
     media = webtoon_instance.media.add(
         b"test",
@@ -484,9 +484,16 @@ def test_set_media_conversion_without_path_raises(webtoon_instance: Webtoon):
     media_data = media.load()
     media_data.path = None
     media_data.conversion = "bytes"
+    media_data.data = b"updated data"
 
-    with pytest.raises(ValueError, match="Both path and conversion"):
-        webtoon_instance.media.set(media_data)
+    # 이것은 정상적으로 작동해야 함
+    webtoon_instance.media.set(media_data)
+
+    # 검증
+    reloaded = media.load()
+    assert reloaded.data == b"updated data"
+    assert reloaded.path is None
+    assert reloaded.conversion == "bytes"
 
 
 def test_set_media_both_path_and_data_raises(webtoon_instance: Webtoon):

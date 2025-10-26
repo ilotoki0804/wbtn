@@ -291,7 +291,7 @@ def test_get_conversion_for_stored_value(webtoon_instance: Webtoon):
     """저장된 값의 conversion type 확인"""
     webtoon_instance.info["test"] = "string"
     conversion = webtoon_instance.info.get_conversion("test")
-    assert conversion is None  # primitive_conversion=False가 기본
+    assert conversion == "str"  # primitive_conversion=True가 기본값으로 변경됨
 
 
 def test_get_conversion_for_json_value(webtoon_instance: Webtoon):

@@ -4,7 +4,6 @@ import sqlite3
 import typing
 
 from .._base import ValueType, ConversionType
-from ..conversion import load_value, get_conversion_query_value
 from .._base import WebtoonType
 
 _NOTSET = object()
@@ -49,19 +48,19 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
             else:
                 return default
         conversion, value = result
-        value = load_value(conversion, value)
+        value = self.webtoon.value.load(conversion, value)
         return value
 
     def items(self) -> typing.Iterator[tuple[str, ValueType]]:
         with self.webtoon.connection.cursor() as cur:
             for name, conversion, value in cur.execute(f"SELECT name, conversion, {GET_VALUE} FROM info"):
-                value = load_value(conversion, value)
+                value = self.webtoon.value.load(conversion, value)
                 yield name, value
 
     def values(self) -> typing.Iterator[ValueType]:
         with self.webtoon.connection.cursor() as cur:
             for conversion, value in cur.execute(f"SELECT conversion, {GET_VALUE} FROM info"):
-                value = load_value(conversion, value)
+                value = self.webtoon.value.load(conversion, value)
                 yield value
 
     def clear(self, delete_system: bool = False) -> None:
@@ -89,16 +88,16 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
             else:
                 return default
         conversion, value = result
-        value = load_value(conversion, value)
+        value = self.webtoon.value.load(conversion, value)
         return value
 
     def set(self, name: str, value: ValueType) -> None:
-        conversion, query, value = get_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
 
     def setdefault(self, name: str, value: ValueType) -> None:
-        conversion, query, value = get_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
         with self.webtoon.connection.cursor() as cur:
             try:
                 cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))

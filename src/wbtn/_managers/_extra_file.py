@@ -5,8 +5,6 @@ import datetime
 import typing
 from pathlib import Path
 
-from wbtn.conversion import dump_bytes_value, get_conversion_query_value, load_value
-
 from .._base import (
     ConversionType,
     ValueType,
@@ -50,7 +48,7 @@ class WebtoonExtraFileManager:
         if data is _NOTSET:
             query, value = "?", None
         else:
-            conversion, query, value = get_conversion_query_value(data, primitive_conversion=True, **dict(conversion=conversion) if conversion else {})  # type: ignore # TODO: 나중에 고쳐질 예정
+            conversion, query, value = self.webtoon.value.dump_conversion_query_value(data)
 
         file_id, = self.webtoon.execute(
             f"INSERT INTO extra_files (purpose, conversion, path, data, added_at) VALUES (?, ?, ?, {query}, ?) RETURNING id",
@@ -78,7 +76,7 @@ class WebtoonExtraFileManager:
             params = (purpose,)
         with self.webtoon.execute_with(query, params) as cur:
             for id, purpose, conversion, path, data, added_at in cur:
-                value = load_value(conversion, data)
+                value = self.webtoon.value.load(conversion, data)
                 yield ExtraFile(id, purpose, conversion, self.webtoon.path.load_str(path), value, fromtimestamp(added_at))
 
     def remove(self, file: ExtraFile) -> None:
@@ -102,5 +100,5 @@ class ExtraFile:
         if result is None:
             raise KeyError(file_id)
         id, purpose, conversion, path, data, added_at = result
-        value = load_value(conversion, data)
+        value = webtoon.value.load(conversion, data)
         return ExtraFile(id, purpose, conversion, webtoon.path.load_str(path), value, fromtimestamp(added_at))

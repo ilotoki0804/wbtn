@@ -5,9 +5,8 @@ import sqlite3
 import typing
 import warnings
 from contextlib import closing, contextmanager, suppress
+from dataclasses import dataclass
 from pathlib import Path
-
-from attr import dataclass
 
 from .._base import JOURNAL_MODES, JournalModes, WebtoonConnectionError, WebtoonOpenError, WebtoonSchemaError, timestamp
 from .._base import SCHEMA_VERSION as user_version
@@ -278,6 +277,7 @@ class WebtoonConnectionManager:
             cur.execute("""CREATE TABLE IF NOT EXISTS extra_files (
                 id INTEGER PRIMARY KEY NOT NULL,
                 purpose TEXT,
+                conversion TEXT,
                 path UNIQUE NOT NULL,
                 data BLOB,
                 added_at TIMESTAMP NOT NULL
