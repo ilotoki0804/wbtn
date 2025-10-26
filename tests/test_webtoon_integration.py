@@ -135,7 +135,7 @@ def test_complete_webtoon_workflow(tmp_path: Path):
         # 5. 추가 파일
         extra_file_path = tmp_path / "extra.txt"
         extra_file_path.write_text("extra content")
-        webtoon.extra_file.add(extra_file_path, purpose="metadata")
+        webtoon.extra_file.add_data(extra_file_path, data="extra content", purpose="metadata")
 
     # 데이터베이스 재열기 및 검증
     with Webtoon(db_path) as webtoon:

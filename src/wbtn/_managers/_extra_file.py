@@ -5,7 +5,11 @@ import datetime
 import typing
 from pathlib import Path
 
+from wbtn.conversion import dump_bytes_value, get_conversion_query_value, load_value
+
 from .._base import (
+    ConversionType,
+    ValueType,
     fromtimestamp,
     timestamp,
 )
@@ -19,33 +23,45 @@ __all__ = ("WebtoonExtraFileManager", "ExtraFile")
 class WebtoonExtraFileManager:
     __slots__ = "webtoon",
 
-    def __init__(self, webtoon: WebtoonType):
+    def __init__(self, webtoon: WebtoonType) -> None:
         self.webtoon = webtoon
 
-    def __iter__(self):
+    def __iter__(self) -> typing.Iterator[ExtraFile]:
         return self.iterate()
 
-    def __len__(self):
+    def __len__(self) -> int:
         length, = self.webtoon.execute("SELECT count() FROM extra_files")
         return length
 
-    def add(self, path: Path, purpose: str | None = None, data: bytes | None = None):
-        self.webtoon.execute(
-            "INSERT INTO extra_files (purpose, path, data, added_at) VALUES (?, ?, ?, ?)",
-            (purpose, self.webtoon.path.dump(path), data, timestamp()),
+    def add_path(self, path: Path, conversion: ConversionType, purpose: str | None = None) -> ExtraFile:
+        return self._add(path, purpose, conversion=conversion)
+
+    def add_data(self, path: Path, data: ValueType, purpose: str | None = None) -> ExtraFile:
+        return self._add(path, purpose, data=data)
+
+    def _add(
+        self,
+        path: Path,
+        purpose: str | None = None,
+        *,
+        conversion: ConversionType = None,
+        data: ValueType = _NOTSET,  # type: ignore
+    ) -> ExtraFile:
+        if data is _NOTSET:
+            query, value = "?", None
+        else:
+            conversion, query, value = get_conversion_query_value(data, primitive_conversion=True, **dict(conversion=conversion) if conversion else {})  # type: ignore # TODO: 나중에 고쳐질 예정
+
+        file_id, = self.webtoon.execute(
+            f"INSERT INTO extra_files (purpose, conversion, path, data, added_at) VALUES (?, ?, ?, {query}, ?) RETURNING id",
+            (purpose, conversion, self.webtoon.path.dump(path), value, time := timestamp()),
         )
+        return ExtraFile.from_id(file_id, self.webtoon)
 
-    def get(self, id: int | ExtraFile) -> ExtraFile:
-        result = self.webtoon.execute("SELECT * FROM extra_files WHERE id == ?", (id if isinstance(id, int) else id.id,))
-        if result is None:
-            raise KeyError(id)
-        id_, purpose, path, data, added_at = result
-        return ExtraFile(id_, purpose, self.webtoon.path.load_str(path), data, fromtimestamp(added_at))
-
-    def set(self, extra_file: ExtraFile):
+    def set(self, extra_file: ExtraFile) -> None:
         result = self.webtoon.execute(
-            "UPDATE extra_files SET purpose = ?, path = ?, data = ?, added_at = ? WHERE id = ? RETURNING 1",
-            (extra_file.purpose, self.webtoon.path.dump(extra_file.path), extra_file.data, extra_file.added_at.timestamp(), extra_file.id)
+            "UPDATE extra_files SET purpose = ?, conversion = ?, path = ?, data = ?, added_at = ? WHERE id = ? RETURNING 1",
+            (extra_file.purpose, extra_file.conversion, self.webtoon.path.dump(extra_file.path), extra_file.data, extra_file.added_at.timestamp(), extra_file.id)
         )
         if result is None:
             raise KeyError(extra_file)
@@ -54,23 +70,37 @@ class WebtoonExtraFileManager:
         if purpose is _NOTSET:
             query = "SELECT * FROM extra_files"
             params = ()
+        elif purpose is None:
+            query = "SELECT * FROM extra_files WHERE purpose IS NULL"
+            params = ()
         else:
             query = "SELECT * FROM extra_files WHERE purpose == ?"
             params = (purpose,)
         with self.webtoon.execute_with(query, params) as cur:
-            for id, purpose, path, data, added_at in cur:
-                yield ExtraFile(id, purpose, self.webtoon.path.load_str(path), data, fromtimestamp(added_at))
+            for id, purpose, conversion, path, data, added_at in cur:
+                value = load_value(conversion, data)
+                yield ExtraFile(id, purpose, conversion, self.webtoon.path.load_str(path), value, fromtimestamp(added_at))
 
-    def remove(self, id: int | ExtraFile):
-        result = self.webtoon.execute("DELETE FROM extra_files WHERE id == ? RETURNING 1", (id if isinstance(id, int) else id.id,))
+    def remove(self, file: ExtraFile) -> None:
+        result = self.webtoon.execute("DELETE FROM extra_files WHERE id == ? RETURNING 1", (file.id,))
         if result is None:
-            raise KeyError(id)
+            raise KeyError(file)
 
 
 @dataclass(slots=True)
 class ExtraFile:
     id: int
     purpose: str | None
+    conversion: ConversionType
     path: Path
-    data: bytes | None
+    data: ValueType
     added_at: datetime.datetime
+
+    @classmethod
+    def from_id(cls, file_id: int, webtoon: WebtoonType) -> ExtraFile:
+        result = webtoon.execute("SELECT * FROM extra_files WHERE id == ?", (file_id if isinstance(file_id, int) else file_id.id,))
+        if result is None:
+            raise KeyError(file_id)
+        id, purpose, conversion, path, data, added_at = result
+        value = load_value(conversion, data)
+        return ExtraFile(id, purpose, conversion, webtoon.path.load_str(path), value, fromtimestamp(added_at))

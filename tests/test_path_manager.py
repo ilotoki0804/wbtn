@@ -604,8 +604,8 @@ def test_extra_file_path_storage_with_custom_base_path(tmp_path: Path):
         extra_file.parent.mkdir(parents=True, exist_ok=True)
         extra_file.write_bytes(b'{"key": "value"}')
 
-        # extra file 추가 (경로)
-        webtoon.extra_file.add(extra_file, purpose="metadata")
+        # extra file 추가 (경로만)
+        webtoon.extra_file.add_path(extra_file, conversion="str", purpose="metadata")
 
     # 다시 열어서 확인
     with Webtoon(db_path) as webtoon:
