@@ -14,6 +14,7 @@ __all__ = ("WebtoonPathManager",)
 
 
 class WebtoonPathManager:
+    # TODO: 이게 변경될 때도 필요한 경우 변환이 있어야 함!!
     _base_path: Path | None = None
     """
     웹툰 파일에는 절대 경로를 저장하거나 로드할 수 없습니다.
@@ -58,6 +59,7 @@ class WebtoonPathManager:
     이 값은 경로를 불러올 때와는 무관합니다. 경로를 불러왔을 때 절대 경로인 경우
     이 값과는 무관하게 항상 오류가 발생합니다.
     """
+    # TODO: 이 값이 변경될 때 실제로 wbtn 파일이 self-contained의 규약을 지키는지 확인해야 함!!!
     self_contained: bool = False
     """
     이 값이 True로 설정된 경우 self-contained 모드가 활성화됩니다.

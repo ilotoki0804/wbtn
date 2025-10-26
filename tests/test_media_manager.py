@@ -2,10 +2,13 @@
 WebtoonMediaManager와 관련 클래스들에 대한 테스트
 미디어 추가, 조회, 수정, path/data 처리 등을 테스트합니다.
 """
+import datetime
 import sys
 from pathlib import Path
 
 import pytest
+
+from wbtn._managers._episode import WebtoonEpisode
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -19,11 +22,11 @@ from wbtn._json_data import JsonData
 
 def test_add_media_with_data(webtoon_instance: Webtoon):
     """데이터로 미디어 추가"""
-    webtoon_instance.episode.add(id=1, name="Test Ep")
+    episode = webtoon_instance.episode.add(id=1, name="Test Ep")
 
     media = webtoon_instance.media.add(
         b"image data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         media_type="image/jpeg",
@@ -37,17 +40,17 @@ def test_add_media_with_data(webtoon_instance: Webtoon):
 
 def test_add_multiple_media_to_episode(webtoon_instance: Webtoon):
     """한 에피소드에 여러 미디어 추가"""
-    webtoon_instance.episode.add(id=2, name="Multi Media Ep")
+    episode = webtoon_instance.episode.add(id=2, name="Multi Media Ep")
 
     media1 = webtoon_instance.media.add(
         b"data1",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
     media2 = webtoon_instance.media.add(
         b"data2",
-        episode_no=1,
+        episode=episode,
         media_no=2,
         purpose="image"
     )
@@ -57,12 +60,12 @@ def test_add_multiple_media_to_episode(webtoon_instance: Webtoon):
 
 def test_add_media_with_json_data(webtoon_instance: Webtoon):
     """JsonData로 미디어 추가"""
-    webtoon_instance.episode.add(id=3, name="JSON Media Ep")
+    episode = webtoon_instance.episode.add(id=3, name="JSON Media Ep")
 
     json_meta = JsonData(data={"width": 800, "height": 600})
     media = webtoon_instance.media.add(
         json_meta,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="metadata"
     )
@@ -76,7 +79,7 @@ def test_add_media_with_json_data(webtoon_instance: Webtoon):
 
 def test_add_media_with_path(tmp_path: Path, webtoon_instance: Webtoon):
     """경로로 미디어 추가"""
-    webtoon_instance.episode.add(id=4, name="Path Media Ep")
+    episode = webtoon_instance.episode.add(id=4, name="Path Media Ep")
 
     # 테스트 파일 생성
     media_file = tmp_path / "test.jpg"
@@ -85,7 +88,7 @@ def test_add_media_with_path(tmp_path: Path, webtoon_instance: Webtoon):
     # 경로로 미디어 추가
     media = webtoon_instance.media.add(
         media_file,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         conversion="bytes"
@@ -101,13 +104,13 @@ def test_add_path_or_data_creates_file_when_not_self_contained(tmp_path: Path):
     media_path = tmp_path / "media" / "001.jpg"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.episode.add(id=5, name="File Test")
+        episode = webtoon.episode.add(id=5, name="File Test")
         webtoon.path.initialize_base_path(tmp_path)
 
         webtoon.media.add_path_or_data(
             path=media_path,
             data=b"image content",
-            episode_no=1,
+            episode=episode,
             media_no=1,
             purpose="image"
         )
@@ -121,52 +124,52 @@ def test_add_path_or_data_creates_file_when_not_self_contained(tmp_path: Path):
 
 def test_iterate_media_by_episode(webtoon_instance: Webtoon):
     """특정 에피소드의 미디어 순회"""
-    webtoon_instance.episode.add(id=6, name="Iterate Test")
+    episode = webtoon_instance.episode.add(id=6, name="Iterate Test")
 
     for i in range(3):
         webtoon_instance.media.add(
             f"data{i}".encode(),
-            episode_no=1,
+            episode=episode,
             media_no=i + 1,
             purpose="image"
         )
 
-    media_list = list(webtoon_instance.media.iterate(episode_no=1))
+    media_list = list(webtoon_instance.media.iterate(episode=episode))
     assert len(media_list) == 3
 
 
 def test_iterate_media_by_purpose(webtoon_instance: Webtoon):
     """purpose로 미디어 필터링"""
-    webtoon_instance.episode.add(id=7, name="Purpose Test")
+    episode = webtoon_instance.episode.add(id=7, name="Purpose Test")
 
-    webtoon_instance.media.add(b"img", episode_no=1, media_no=1, purpose="image")
-    webtoon_instance.media.add(b"thumb", episode_no=1, media_no=2, purpose="thumbnail")
-    webtoon_instance.media.add(b"img2", episode_no=1, media_no=3, purpose="image")
+    webtoon_instance.media.add(b"img", episode=episode, media_no=1, purpose="image")
+    webtoon_instance.media.add(b"thumb", episode=episode, media_no=2, purpose="thumbnail")
+    webtoon_instance.media.add(b"img2", episode=episode, media_no=3, purpose="image")
 
-    images = list(webtoon_instance.media.iterate(episode_no=1, purpose="image"))
+    images = list(webtoon_instance.media.iterate(episode=episode, purpose="image"))
     assert len(images) == 2
 
 
 def test_iterate_media_by_state(webtoon_instance: Webtoon):
     """state로 미디어 필터링"""
-    webtoon_instance.episode.add(id=8, name="State Test")
+    episode = webtoon_instance.episode.add(id=8, name="State Test")
 
     webtoon_instance.media.add(
         b"data1",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         state="complete"
     )
     webtoon_instance.media.add(
         b"data2",
-        episode_no=1,
+        episode=episode,
         media_no=2,
         purpose="image",
         state="pending"
     )
 
-    complete_media = list(webtoon_instance.media.iterate(episode_no=1, state="complete"))
+    complete_media = list(webtoon_instance.media.iterate(episode=episode, state="complete"))
     assert len(complete_media) == 1
 
 
@@ -175,11 +178,11 @@ def test_iterate_media_by_state(webtoon_instance: Webtoon):
 
 def test_remove_media(webtoon_instance: Webtoon):
     """미디어 삭제"""
-    webtoon_instance.episode.add(id=9, name="Remove Test")
+    episode = webtoon_instance.episode.add(id=9, name="Remove Test")
 
     media = webtoon_instance.media.add(
         b"to delete",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -194,11 +197,11 @@ def test_remove_media(webtoon_instance: Webtoon):
 
 def test_set_media_updates_data(webtoon_instance: Webtoon):
     """set으로 미디어 데이터 업데이트"""
-    webtoon_instance.episode.add(id=10, name="Update Test")
+    episode = webtoon_instance.episode.add(id=10, name="Update Test")
 
     media = webtoon_instance.media.add(
         b"original",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -218,14 +221,14 @@ def test_set_media_updates_data(webtoon_instance: Webtoon):
 
 def test_load_data_from_path_media(tmp_path: Path, webtoon_instance: Webtoon):
     """경로 기반 미디어에서 데이터 로드"""
-    webtoon_instance.episode.add(id=11, name="Load Data Test")
+    episode = webtoon_instance.episode.add(id=11, name="Load Data Test")
 
     media_file = tmp_path / "load_test.dat"
     media_file.write_bytes(b"file content")
 
     media = webtoon_instance.media.add(
         media_file,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="data",
         conversion="bytes"
@@ -238,11 +241,11 @@ def test_load_data_from_path_media(tmp_path: Path, webtoon_instance: Webtoon):
 
 def test_dump_path_writes_data_to_file(tmp_path: Path, webtoon_instance: Webtoon):
     """데이터를 파일로 dump"""
-    webtoon_instance.episode.add(id=12, name="Dump Path Test")
+    episode = webtoon_instance.episode.add(id=12, name="Dump Path Test")
 
     media = webtoon_instance.media.add(
         b"dump this",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -260,11 +263,11 @@ def test_dump_path_writes_data_to_file(tmp_path: Path, webtoon_instance: Webtoon
 
 def test_webtoon_media_loaded_property(webtoon_instance: Webtoon):
     """WebtoonMedia의 loaded 속성"""
-    webtoon_instance.episode.add(id=13, name="Loaded Test")
+    episode = webtoon_instance.episode.add(id=13, name="Loaded Test")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -281,11 +284,11 @@ def test_webtoon_media_from_media_id(webtoon_instance: Webtoon):
     """media_id로 WebtoonMedia 생성"""
     from wbtn._managers import WebtoonMedia
 
-    webtoon_instance.episode.add(id=14, name="From ID Test")
+    episode = webtoon_instance.episode.add(id=14, name="From ID Test")
 
     media = webtoon_instance.media.add(
         b"test data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -301,11 +304,11 @@ def test_webtoon_media_from_media_id(webtoon_instance: Webtoon):
 
 def test_media_with_none_data(webtoon_instance: Webtoon):
     """None 데이터로 미디어 추가"""
-    webtoon_instance.episode.add(id=15, name="None Data Test")
+    episode = webtoon_instance.episode.add(id=15, name="None Data Test")
 
     media = webtoon_instance.media.add(
         None,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="placeholder"
     )
@@ -316,11 +319,11 @@ def test_media_with_none_data(webtoon_instance: Webtoon):
 
 def test_media_with_empty_bytes(webtoon_instance: Webtoon):
     """빈 bytes로 미디어 추가"""
-    webtoon_instance.episode.add(id=16, name="Empty Bytes Test")
+    episode = webtoon_instance.episode.add(id=16, name="Empty Bytes Test")
 
     media = webtoon_instance.media.add(
         b"",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="empty"
     )
@@ -331,12 +334,12 @@ def test_media_with_empty_bytes(webtoon_instance: Webtoon):
 
 def test_media_with_large_data(webtoon_instance: Webtoon):
     """큰 데이터로 미디어 추가"""
-    webtoon_instance.episode.add(id=17, name="Large Data Test")
+    episode = webtoon_instance.episode.add(id=17, name="Large Data Test")
 
     large_data = b"x" * (1024 * 1024)  # 1MB
     media = webtoon_instance.media.add(
         large_data,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="large"
     )
@@ -353,11 +356,11 @@ def test_webtoon_media_from_media_data(webtoon_instance: Webtoon):
     """WebtoonMediaData로 WebtoonMedia 생성"""
     from wbtn._managers import WebtoonMedia
 
-    webtoon_instance.episode.add(id=18, name="From Data Test")
+    episode = webtoon_instance.episode.add(id=18, name="From Data Test")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -403,11 +406,11 @@ def test_webtoon_media_media_id_with_store(webtoon_instance: Webtoon):
     """media_id() 메서드의 store_id 옵션"""
     from wbtn._managers import WebtoonMedia
 
-    webtoon_instance.episode.add(id=19, name="Store ID Test")
+    episode = webtoon_instance.episode.add(id=19, name="Store ID Test")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -426,11 +429,11 @@ def test_webtoon_media_stored_property(webtoon_instance: Webtoon):
     """WebtoonMedia의 stored 속성"""
     from wbtn._managers import WebtoonMediaData
 
-    webtoon_instance.episode.add(id=20, name="Stored Test")
+    episode = webtoon_instance.episode.add(id=20, name="Stored Test")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -450,11 +453,11 @@ def test_webtoon_media_stored_property(webtoon_instance: Webtoon):
 
 def test_set_media_path_without_conversion_raises(webtoon_instance: Webtoon):
     """path가 있는데 conversion이 없으면 ValueError"""
-    webtoon_instance.episode.add(id=21, name="Set Error Test")
+    episode = webtoon_instance.episode.add(id=21, name="Set Error Test")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -469,11 +472,11 @@ def test_set_media_path_without_conversion_raises(webtoon_instance: Webtoon):
 
 def test_set_media_conversion_without_path_raises(webtoon_instance: Webtoon):
     """conversion이 있는데 path가 없으면 ValueError"""
-    webtoon_instance.episode.add(id=22, name="Set Error Test 2")
+    episode = webtoon_instance.episode.add(id=22, name="Set Error Test 2")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -488,11 +491,11 @@ def test_set_media_conversion_without_path_raises(webtoon_instance: Webtoon):
 
 def test_set_media_both_path_and_data_raises(webtoon_instance: Webtoon):
     """path와 data가 모두 있으면 ValueError"""
-    webtoon_instance.episode.add(id=23, name="Set Error Test 3")
+    episode = webtoon_instance.episode.add(id=23, name="Set Error Test 3")
 
     media = webtoon_instance.media.add(
         b"test",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -536,45 +539,45 @@ def test_set_media_nonexistent_media_raises(webtoon_instance: Webtoon):
 
 def test_iterate_all_media_with_none_filters(webtoon_instance: Webtoon):
     """모든 필터를 None으로 설정하면 전체 미디어 반환"""
-    webtoon_instance.episode.add(id=25, name="Ep 1")
-    webtoon_instance.episode.add(id=26, name="Ep 2")
+    ep1 = webtoon_instance.episode.add(id=25, name="Ep 1")
+    ep2 = webtoon_instance.episode.add(id=26, name="Ep 2")
 
-    webtoon_instance.media.add(b"data1", episode_no=1, media_no=1, purpose="image")
-    webtoon_instance.media.add(b"data2", episode_no=2, media_no=1, purpose="image")
+    webtoon_instance.media.add(b"data1", episode=ep1, media_no=1, purpose="image")
+    webtoon_instance.media.add(b"data2", episode=ep2, media_no=1, purpose="image")
 
-    all_media = list(webtoon_instance.media.iterate(episode_no=None, purpose=None, state=None))
+    all_media = list(webtoon_instance.media.iterate(episode=None, purpose=None, state=None))
     assert len(all_media) >= 2
 
 
 def test_iterate_with_multiple_filters(webtoon_instance: Webtoon):
     """여러 필터 동시 적용"""
-    webtoon_instance.episode.add(id=27, name="Multi Filter Test")
+    episode = webtoon_instance.episode.add(id=27, name="Multi Filter Test")
 
     webtoon_instance.media.add(
         b"data1",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         state="complete"
     )
     webtoon_instance.media.add(
         b"data2",
-        episode_no=1,
+        episode=episode,
         media_no=2,
         purpose="thumbnail",
         state="complete"
     )
     webtoon_instance.media.add(
         b"data3",
-        episode_no=1,
+        episode=episode,
         media_no=3,
         purpose="image",
         state="pending"
     )
 
-    # episode_no=1, purpose="image", state="complete"
+    # episode, purpose="image", state="complete"
     filtered = list(webtoon_instance.media.iterate(
-        episode_no=1,
+        episode=episode,
         purpose="image",
         state="complete"
     ))
@@ -586,14 +589,14 @@ def test_iterate_with_multiple_filters(webtoon_instance: Webtoon):
 
 def test_load_data_with_store_data_true(tmp_path: Path, webtoon_instance: Webtoon):
     """store_data=True로 경로 데이터를 DB에 저장"""
-    webtoon_instance.episode.add(id=28, name="Store Data Test")
+    episode = webtoon_instance.episode.add(id=28, name="Store Data Test")
 
     media_file = tmp_path / "store_test.dat"
     media_file.write_bytes(b"file content")
 
     media = webtoon_instance.media.add(
         media_file,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="data",
         conversion="bytes"
@@ -615,11 +618,11 @@ def test_load_data_with_store_data_true(tmp_path: Path, webtoon_instance: Webtoo
 
 def test_load_data_from_data_media(webtoon_instance: Webtoon):
     """데이터 기반 미디어에서 load_data는 그냥 데이터 반환"""
-    webtoon_instance.episode.add(id=29, name="Data Media Test")
+    episode = webtoon_instance.episode.add(id=29, name="Data Media Test")
 
     media = webtoon_instance.media.add(
         b"direct data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -633,14 +636,14 @@ def test_load_data_from_data_media(webtoon_instance: Webtoon):
 
 def test_dump_path_already_has_path_returns_existing(tmp_path: Path, webtoon_instance: Webtoon):
     """이미 경로가 있으면 기존 경로 반환"""
-    webtoon_instance.episode.add(id=30, name="Existing Path Test")
+    episode = webtoon_instance.episode.add(id=30, name="Existing Path Test")
 
     existing_file = tmp_path / "existing.dat"
     existing_file.write_bytes(b"existing")
 
     media = webtoon_instance.media.add(
         existing_file,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="data",
         conversion="bytes"
@@ -656,11 +659,11 @@ def test_dump_path_already_has_path_returns_existing(tmp_path: Path, webtoon_ins
 
 def test_dump_path_creates_parent_directories(tmp_path: Path, webtoon_instance: Webtoon):
     """dump_path가 부모 디렉터리 자동 생성"""
-    webtoon_instance.episode.add(id=31, name="Parent Dir Test")
+    episode = webtoon_instance.episode.add(id=31, name="Parent Dir Test")
 
     media = webtoon_instance.media.add(
         b"test data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -680,7 +683,7 @@ def test_add_path_or_data_self_contained_uses_data(webtoon_instance: Webtoon):
     """self_contained 모드에서는 파일 생성 안 하고 데이터로 저장"""
     from pathlib import Path as PathType
 
-    webtoon_instance.episode.add(id=32, name="Self Contained Test")
+    episode = webtoon_instance.episode.add(id=32, name="Self Contained Test")
     webtoon_instance.path.self_contained = True
 
     fake_path = PathType("/fake/path.jpg")
@@ -688,7 +691,7 @@ def test_add_path_or_data_self_contained_uses_data(webtoon_instance: Webtoon):
     media = webtoon_instance.media.add_path_or_data(
         path=fake_path,
         data=b"image data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -704,14 +707,14 @@ def test_add_path_or_data_mkdir_false(tmp_path: Path):
     media_path = tmp_path / "nonexistent" / "file.jpg"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.episode.add(id=33, name="No Mkdir Test")
+        episode = webtoon.episode.add(id=33, name="No Mkdir Test")
         webtoon.path.initialize_base_path(tmp_path)
 
         with pytest.raises(FileNotFoundError):
             webtoon.media.add_path_or_data(
                 path=media_path,
                 data=b"data",
-                episode_no=1,
+                episode=episode,
                 media_no=1,
                 purpose="image",
                 mkdir=False
@@ -724,20 +727,22 @@ def test_add_path_or_data_rollback_on_error(tmp_path: Path):
     media_path = tmp_path / "rollback.jpg"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.episode.add(id=34, name="Rollback Test")
+        episode = webtoon.episode.add(id=34, name="Rollback Test")
         webtoon.path.initialize_base_path(tmp_path)
 
-        # 잘못된 episode_no로 에러 유발
-        try:
+        # 잘못된 WebtoonEpisode 객체로 에러 유발
+        # 존재하지 않는 가짜 에피소드
+        fake_episode = WebtoonEpisode(9999, "fake", None, 111, datetime.datetime.now())
+
+        with pytest.raises(Exception):
+            # 데이터베이스에 문제를 일으킬 상황 만들기
             webtoon.media.add_path_or_data(
                 path=media_path,
                 data=b"data",
-                episode_no=99999,  # 존재하지 않는 에피소드
+                episode=fake_episode,
                 media_no=1,
                 purpose="image"
             )
-        except Exception:
-            pass
 
         # 파일이 생성되지 않았거나 롤백되었는지 확인
         # (에러 시 unlink가 호출되므로)
@@ -749,12 +754,12 @@ def test_add_path_or_data_rollback_on_error(tmp_path: Path):
 
 def test_add_with_data_and_conversion_raises(webtoon_instance: Webtoon):
     """데이터와 함께 conversion 파라미터 제공 시 ValueError"""
-    webtoon_instance.episode.add(id=35, name="Conversion Error Test")
+    episode = webtoon_instance.episode.add(id=35, name="Conversion Error Test")
 
     with pytest.raises(ValueError, match="conversion cannot be provided"):
         webtoon_instance.media.add(
             b"data",  # type: ignore
-            episode_no=1,
+            episode=episode,
             media_no=1,
             purpose="image",
             conversion="bytes"
@@ -766,11 +771,11 @@ def test_add_with_data_and_conversion_raises(webtoon_instance: Webtoon):
 
 def test_media_with_all_metadata_fields(webtoon_instance: Webtoon):
     """모든 메타데이터 필드를 포함한 미디어"""
-    webtoon_instance.episode.add(id=36, name="Full Metadata Test")
+    episode = webtoon_instance.episode.add(id=36, name="Full Metadata Test")
 
     media = webtoon_instance.media.add(
         b"image data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         state="complete",
@@ -786,7 +791,7 @@ def test_media_with_all_metadata_fields(webtoon_instance: Webtoon):
 
 def test_media_type_various_formats(webtoon_instance: Webtoon):
     """다양한 미디어 타입"""
-    webtoon_instance.episode.add(id=37, name="Media Types Test")
+    episode = webtoon_instance.episode.add(id=37, name="Media Types Test")
 
     types = [
         ("image/jpeg", b"jpg data"),
@@ -799,7 +804,7 @@ def test_media_type_various_formats(webtoon_instance: Webtoon):
     for i, (media_type, data) in enumerate(types):
         media = webtoon_instance.media.add(
             data,
-            episode_no=1,
+            episode=episode,
             media_no=i + 1,
             purpose="content",
             media_type=media_type
@@ -816,12 +821,12 @@ def test_media_added_at_timestamp(webtoon_instance: Webtoon):
     """added_at이 현재 시간으로 설정됨"""
     import datetime
 
-    webtoon_instance.episode.add(id=38, name="Timestamp Test")
+    episode = webtoon_instance.episode.add(id=38, name="Timestamp Test")
 
     before_time = datetime.datetime.now()
     media = webtoon_instance.media.add(
         b"data",
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image"
     )
@@ -849,14 +854,14 @@ def test_remove_nonexistent_media_raises(webtoon_instance: Webtoon):
 
 def test_remove_media_with_path_keeps_file(tmp_path: Path, webtoon_instance: Webtoon):
     """미디어 삭제해도 실제 파일은 유지됨"""
-    webtoon_instance.episode.add(id=39, name="Remove Path Test")
+    episode = webtoon_instance.episode.add(id=39, name="Remove Path Test")
 
     media_file = tmp_path / "keep_file.jpg"
     media_file.write_bytes(b"file content")
 
     media = webtoon_instance.media.add(
         media_file,
-        episode_no=1,
+        episode=episode,
         media_no=1,
         purpose="image",
         conversion="bytes"
@@ -879,13 +884,13 @@ def test_complete_media_workflow(tmp_path: Path):
         webtoon.path.initialize_base_path(tmp_path)
 
         # 에피소드 생성
-        webtoon.episode.add(id=40, name="Episode 1")
+        episode = webtoon.episode.add(id=40, name="Episode 1")
 
         # 여러 미디어 추가
         for i in range(5):
             webtoon.media.add(
                 f"image_{i}".encode(),
-                episode_no=1,
+                episode=episode,
                 media_no=i + 1,
                 purpose="image",
                 media_type="image/jpeg",
@@ -893,7 +898,7 @@ def test_complete_media_workflow(tmp_path: Path):
             )
 
         # 조회
-        all_media = list(webtoon.media.iterate(episode_no=1))
+        all_media = list(webtoon.media.iterate(episode=episode))
         assert len(all_media) == 5
 
         # 수정
@@ -906,5 +911,5 @@ def test_complete_media_workflow(tmp_path: Path):
         webtoon.media.remove(all_media[-1])
 
         # 최종 확인
-        remaining = list(webtoon.media.iterate(episode_no=1))
+        remaining = list(webtoon.media.iterate(episode=episode))
         assert len(remaining) == 4

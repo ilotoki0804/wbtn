@@ -13,6 +13,7 @@ from .._base import (
     fromtimestamp,
     timestamp,
 )
+from ._episode import WebtoonEpisode
 from .._json_data import JsonData
 from ..conversion import dump_bytes_value, get_primitive_conversion, load_bytes_value, get_conversion_query_value, load_value
 from .._base import WebtoonType
@@ -30,7 +31,7 @@ class WebtoonMediaManger:
         self,
         path: Path,
         data: PrimitiveType | JsonData,
-        episode_no: int,
+        episode: WebtoonEpisode,
         media_no: int,
         purpose: str,
         conversion: ConversionType = None,
@@ -43,7 +44,7 @@ class WebtoonMediaManger:
         if self.webtoon.path.self_contained:
             return self.add(
                 data,
-                episode_no=episode_no,
+                episode=episode,
                 media_no=media_no,
                 purpose=purpose,
                 state=state,
@@ -57,7 +58,7 @@ class WebtoonMediaManger:
             try:
                 result = self.add(
                     path,
-                    episode_no=episode_no,
+                    episode=episode,
                     media_no=media_no,
                     purpose=purpose,
                     conversion=conversion or get_primitive_conversion(data),
@@ -76,7 +77,7 @@ class WebtoonMediaManger:
         self,
         path: Path,
         /,
-        episode_no: int,
+        episode: WebtoonEpisode,
         media_no: int,
         purpose: str,
         conversion: ConversionType = None,
@@ -90,7 +91,7 @@ class WebtoonMediaManger:
         self,
         data: PrimitiveType | JsonData,
         /,
-        episode_no: int,
+        episode: WebtoonEpisode,
         media_no: int,
         purpose: str,
         *,
@@ -102,7 +103,7 @@ class WebtoonMediaManger:
         self,
         path_or_data: Path | PrimitiveType | JsonData,
         /,
-        episode_no: int,
+        episode: WebtoonEpisode,
         # number는 '한 컷'을 의미하고, image 외에 comment, styles, meta 등 다양한 정보를 포함시킬 수 있다.
         media_no: int,
         # image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
@@ -144,7 +145,7 @@ class WebtoonMediaManger:
                     data,
                     added_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, {query}, ?) RETURNING id""",
-                (episode_no, media_no, purpose, state, media_type, media_name, conversion, path, data, current_time)
+                (episode.episode_no, media_no, purpose, state, media_type, media_name, conversion, path, data, current_time)
             ).fetchone()
             return WebtoonMedia.from_media_id(media_id, self.webtoon)
 
@@ -219,7 +220,7 @@ class WebtoonMediaManger:
 
     def iterate(
         self,
-        episode_no: int | None,
+        episode: WebtoonEpisode | None,
         purpose: str | None = None,
         state: EpisodeState = None,
     ) -> typing.Iterator[WebtoonMedia]:
@@ -230,7 +231,7 @@ class WebtoonMediaManger:
                 FROM media
                 WHERE (?1 IS NULL OR episode_no == ?1) AND (?2 IS NULL OR purpose == ?2) AND (?3 IS NULL OR state == ?3)
                 """,
-                (episode_no, purpose, state)
+                (episode.episode_no if episode else None, purpose, state)
             ):
                 yield WebtoonMedia.from_media_id(media_id, self.webtoon)
 
@@ -275,6 +276,7 @@ class WebtoonMediaData:
     path: Path | None
     data: PrimitiveType | JsonData | None
     added_at: datetime.datetime
+    _webtoon: WebtoonType | None = None
 
 
 class WebtoonMedia:

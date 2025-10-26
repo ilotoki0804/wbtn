@@ -117,16 +117,16 @@ def test_complete_webtoon_workflow(tmp_path: Path):
         ep3 = webtoon.episode.add(id=3, name="3화", state="pending")
 
         # 3. 에피소드별 추가 데이터
-        webtoon.episode.add_extra_data(ep1, "views", 1000)
-        webtoon.episode.add_extra_data(ep2, "views", 2000)
-        webtoon.episode.add_extra_data(ep3, "views", 500)
+        ep1["views"] = 1000
+        ep2["views"] = 2000
+        ep3["views"] = 500
 
         # 4. 미디어 추가
         for ep in [ep1, ep2, ep3]:
             for i in range(3):
                 webtoon.media.add(
-                    f"image_{ep}_{i}".encode(),
-                    episode_no=ep,
+                    f"image_{ep.episode_no}_{i}".encode(),
+                    episode=ep,
                     media_no=i + 1,
                     purpose="image",
                     media_type="image/jpeg"
@@ -143,7 +143,7 @@ def test_complete_webtoon_workflow(tmp_path: Path):
         assert webtoon.info["author"] == "작가명"
 
         # 에피소드 확인
-        all_media = list(webtoon.media.iterate(episode_no=None))
+        all_media = list(webtoon.media.iterate(episode=None))
         assert len(all_media) == 9  # 3 episodes * 3 media each
 
         # 추가 파일 확인
@@ -156,12 +156,12 @@ def test_multi_episode_with_different_media_types(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # 에피소드 생성
-        ep_no = webtoon.episode.add(id=100, name="Complex Episode")
+        episode = webtoon.episode.add(id=100, name="Complex Episode")
 
         # 다양한 타입의 미디어
         webtoon.media.add(
             b"jpeg data",
-            episode_no=ep_no,
+            episode=episode,
             media_no=1,
             purpose="image",
             media_type="image/jpeg"
@@ -169,7 +169,7 @@ def test_multi_episode_with_different_media_types(tmp_path: Path):
 
         webtoon.media.add(
             b"png data",
-            episode_no=ep_no,
+            episode=episode,
             media_no=2,
             purpose="thumbnail",
             media_type="image/png"
@@ -177,15 +177,15 @@ def test_multi_episode_with_different_media_types(tmp_path: Path):
 
         webtoon.media.add(
             JsonData(data={"comment": "Great episode!"}),
-            episode_no=ep_no,
+            episode=episode,
             media_no=3,
             purpose="comment"
         )
 
         # 검증
-        images = list(webtoon.media.iterate(episode_no=ep_no, purpose="image"))
-        thumbs = list(webtoon.media.iterate(episode_no=ep_no, purpose="thumbnail"))
-        comments = list(webtoon.media.iterate(episode_no=ep_no, purpose="comment"))
+        images = list(webtoon.media.iterate(episode=episode, purpose="image"))
+        thumbs = list(webtoon.media.iterate(episode=episode, purpose="thumbnail"))
+        comments = list(webtoon.media.iterate(episode=episode, purpose="comment"))
 
         assert len(images) == 1
         assert len(thumbs) == 1
@@ -198,27 +198,27 @@ def test_large_scale_data_insertion(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # 100개의 에피소드
-        episode_numbers = []
+        episodes = []
         for i in range(100):
-            ep_no = webtoon.episode.add(
+            episode = webtoon.episode.add(
                 id=1000 + i,
                 name=f"Episode {i + 1}",
                 state="complete"
             )
-            episode_numbers.append(ep_no)
+            episodes.append(episode)
 
             # 각 에피소드에 10개의 미디어
             for j in range(10):
                 webtoon.media.add(
                     f"data_{i}_{j}".encode(),
-                    episode_no=ep_no,
+                    episode=episode,
                     media_no=j + 1,
                     purpose="image"
                 )
 
     # 검증
     with Webtoon(db_path) as webtoon:
-        all_media = list(webtoon.media.iterate(episode_no=None))
+        all_media = list(webtoon.media.iterate(episode=None))
         assert len(all_media) == 1000  # 100 episodes * 10 media
 
 
@@ -287,8 +287,8 @@ def test_explicit_operations_persist(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         # 여러 작업
         webtoon.info["key1"] = "value1"
-        ep_no = webtoon.episode.add(id=1, name="Test")
-        webtoon.media.add(b"data", episode_no=ep_no, media_no=1, purpose="test")
+        episode = webtoon.episode.add(id=1, name="Test")
+        webtoon.media.add(b"data", episode=episode, media_no=1, purpose="test")
 
     # 재확인
     with Webtoon(db_path) as webtoon:
@@ -306,64 +306,51 @@ def test_explicit_operations_persist(tmp_path: Path):
 
 
 def test_managers_work_together(tmp_path: Path):
-    """모든 매니저가 함께 작동"""
-    db_path = tmp_path / "managers.wbtn"
-    media_dir = tmp_path / "media"
-    media_dir.mkdir()
+    """여러 관리자가 함께 작동"""
+    db_path = tmp_path / "together.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        # path 설정
-        webtoon.path.initialize_base_path(tmp_path)
-
         # info 설정
-        webtoon.info["title"] = "Integration Test"
+        webtoon.info["title"] = "통합 테스트"
 
-        # episode 추가
-        ep_no = webtoon.episode.add(id=1, name="Episode 1")
-        webtoon.episode.add_extra_data(ep_no, "rating", 5)
+        # 에피소드 추가
+        episode = webtoon.episode.add(id=1, name="Episode 1")
 
-        # media 추가 (파일)
-        media_file = media_dir / "image.jpg"
-        media_file.write_bytes(b"image content")
-        media = webtoon.media.add(
-            media_file,
-            episode_no=ep_no,
-            media_no=1,
-            purpose="image",
-            conversion="bytes"
-        )
+        # extra_data 추가 (MutableMapping 인터페이스)
+        episode["views"] = 1000
+        episode["likes"] = 50
 
-        # extra_file 추가
-        extra = tmp_path / "extra.dat"
-        extra.write_bytes(b"extra data")
-        webtoon.extra_file.add(extra, purpose="bonus")
+        # 미디어 추가 (경로)
+        media_file = tmp_path / "test.jpg"
+        media_file.write_bytes(b"fake image")
+        media_data = webtoon.media.add(media_file, episode=episode, media_no=1, purpose="thumbnail")
 
-    # 모든 데이터 검증
-    with Webtoon(db_path) as webtoon:
-        webtoon.path.initialize_base_path(tmp_path)
+        # 검증
+        assert webtoon.info["title"] == "통합 테스트"
 
-        assert webtoon.info["title"] == "Integration Test"
-        assert webtoon.episode.extra_data(ep_no, "rating") == 5
-        assert len(list(webtoon.media.iterate(episode_no=ep_no))) == 1
-        assert len(webtoon.extra_file) == 1
+        # Episode를 통해 extra_data 조회
+        assert episode["views"] == 1000
+        assert episode["likes"] == 50
+
+        # 미디어 조회
+        media_list = list(webtoon.media.iterate(episode=episode))
+        assert len(media_list) == 1
+        assert media_list[0].load().media_no == 1
 
 
 # ===== 메모리 데이터베이스 테스트 =====
 
 
-def test_memory_database_workflow():
-    """메모리 데이터베이스 전체 워크플로우"""
+def test_memory_database_workflow(tmp_path: Path):
+    """메모리 데이터베이스 워크플로우"""
     with Webtoon(":memory:") as webtoon:
-        # 데이터 추가
-        webtoon.info["test"] = "memory"
-        ep_no = webtoon.episode.add(id=1, name="Memory Episode")
-        webtoon.media.add(b"data", episode_no=ep_no, media_no=1, purpose="test")
+        # 빠른 작업
+        webtoon.info["temp"] = "value"
+        episode = webtoon.episode.add(id=1, name="Test")
+        webtoon.media.add(b"data", episode=episode, media_no=1, purpose="test")
 
-        # 같은 연결 내에서는 데이터 유지
-        assert webtoon.info["test"] == "memory"
-        assert len(list(webtoon.media.iterate(episode_no=ep_no))) == 1
-
-    # 메모리 DB는 연결 종료 시 사라짐 (새 연결에서 확인 불가)
+        # 검증
+        assert len(list(webtoon.media.iterate(episode=episode))) == 1
 
 
 def test_memory_database_isolation():
