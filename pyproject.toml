@@ -24,6 +24,9 @@ dependencies = [
     "fieldenum>=0.2.0",
 ]
 
+[project.scripts]
+wbtn = "wbtn.__main__:main"
+
 [tool.coverage.report]
 exclude_also = [
     "unreachable",
