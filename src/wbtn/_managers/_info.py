@@ -104,7 +104,7 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
             except sqlite3.IntegrityError:  # 이미 값이 있을 경우
                 pass
 
-    def get_conversion(self, name: str) -> ConversionType:
+    def get_conversion(self, name: str) -> ConversionType | None:
         with self.webtoon.connection.cursor() as cur:
             result = cur.execute("SELECT conversion FROM info WHERE name == ?", (name,)).fetchone()
         if result is None:

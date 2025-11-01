@@ -31,7 +31,7 @@ class WebtoonExtraFileManager:
         length, = self.webtoon.execute("SELECT count() FROM extra_files")
         return length
 
-    def add_path(self, path: Path, conversion: ConversionType, purpose: str | None = None) -> ExtraFile:
+    def add_path(self, path: Path, conversion: ConversionType | None, purpose: str | None = None) -> ExtraFile:
         return self._add(path, purpose, conversion=conversion)
 
     def add_data(self, path: Path, data: ValueType, purpose: str | None = None) -> ExtraFile:
@@ -42,7 +42,7 @@ class WebtoonExtraFileManager:
         path: Path,
         purpose: str | None = None,
         *,
-        conversion: ConversionType = None,
+        conversion: ConversionType | None = None,
         data: ValueType = _NOTSET,  # type: ignore
     ) -> ExtraFile:
         if data is _NOTSET:
@@ -89,7 +89,7 @@ class WebtoonExtraFileManager:
 class ExtraFile:
     id: int
     purpose: str | None
-    conversion: ConversionType
+    conversion: ConversionType | None
     path: Path
     data: ValueType
     added_at: datetime.datetime

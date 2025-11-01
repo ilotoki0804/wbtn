@@ -24,7 +24,7 @@ RestrictedPrimitiveType = str | int | bool | float
 PrimitiveType = RestrictedPrimitiveType | bytes | None
 # EpisodeState = _typing.Literal["exists", "downloading", "empty", "impaired"]
 EpisodeState = str | None
-ConversionType = _typing.Literal["json", "jsonb", "path", "str", "bytes", "int", "float", "bool", "null"] | None
+ConversionType = _typing.Literal["json", "jsonb", "path", "str", "bytes", "int", "float", "bool", "null"]
 
 if _typing.TYPE_CHECKING:  # pragma: no cover
     from ._webtoon import Webtoon as WebtoonType

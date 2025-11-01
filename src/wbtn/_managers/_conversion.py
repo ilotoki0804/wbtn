@@ -17,10 +17,10 @@ class WebtoonValue:
     def dump_conversion_query_value(
         self,
         value: ValueType,
-        conversion: ConversionType = None,
+        conversion: ConversionType | None = None,
         *,
         primitive_conversion: bool = True,
-    ) -> tuple[ConversionType, typing.LiteralString, PrimitiveType]:
+    ) -> tuple[ConversionType | None, typing.LiteralString, PrimitiveType]:
         if conversion is None:
             conversion = self._get_conversion(value, primitive_conversion=primitive_conversion)
             query = self._get_query(conversion, cast_primitive=False)
@@ -28,14 +28,14 @@ class WebtoonValue:
             query = self._get_query(conversion, cast_primitive=True)
         return conversion, query, self._dump(value)
 
-    def get_primitive_conversion(self, value) -> ConversionType:
+    def get_primitive_conversion(self, value) -> ConversionType | None:
         return self._get_conversion(value, primitive_conversion=True)
 
     def dump_bytes(self, value: ValueType) -> bytes:
         value = self._dump_str_bytes(value)
         return value.encode("utf-8") if isinstance(value, str) else value
 
-    def load(self, conversion: ConversionType, original_value: PrimitiveType) -> ValueType:
+    def load(self, conversion: ConversionType | None, original_value: PrimitiveType) -> ValueType:
         match conversion, original_value:
             case None, _:
                 return original_value
@@ -58,7 +58,7 @@ class WebtoonValue:
             case _:
                 raise ValueError(f"Invalid type {type(original_value).__name__!r} for conversion or unknown conversion {conversion!r}")
 
-    def load_bytes(self, conversion: ConversionType, raw_bytes: bytes, *, primitive_conversion: bool = True) -> ValueType:
+    def load_bytes(self, conversion: ConversionType | None, raw_bytes: bytes, *, primitive_conversion: bool = True) -> ValueType:
         match conversion:
             case None:
                 raise ValueError("Conversion value is not provided")
@@ -100,7 +100,7 @@ class WebtoonValue:
             case _:
                 raise ValueError(f"Invalid type to convert: {type(value).__name__!r}")
 
-    def _get_conversion(self, value: ValueType, *, primitive_conversion: bool = False) -> ConversionType:
+    def _get_conversion(self, value: ValueType, *, primitive_conversion: bool = False) -> ConversionType | None:
         match value:
             case None:
                 return "null"
@@ -125,7 +125,7 @@ class WebtoonValue:
             case _:
                 raise ValueError(f"Invalid type to convert: {type(value).__name__}")
 
-    def _get_query(self, conversion: ConversionType, *, cast_primitive: bool = False) -> typing.LiteralString:
+    def _get_query(self, conversion: ConversionType | None, *, cast_primitive: bool = False) -> typing.LiteralString:
         # cast_primitive는 redundant한 conversion이니 굳이 하지 않아도 됨.
         # 해야 하는 경우는 conversion의 값과 primitive의 type이 정확하기 일치하는지 확인하고 싶을 때.
         # 그러나 이미 conversion이 주어지지 않는 경우 _get_conversion 단계에서 체크가 이루어지니 필요가 없고,

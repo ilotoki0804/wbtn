@@ -33,7 +33,7 @@ class WebtoonMediaManger:
         episode: WebtoonEpisode,
         media_no: int,
         purpose: str,
-        conversion: ConversionType = None,
+        conversion: ConversionType | None = None,
         *,
         state: EpisodeState = None,
         media_type: str | None = None,
@@ -79,7 +79,7 @@ class WebtoonMediaManger:
         episode: WebtoonEpisode,
         media_no: int,
         purpose: str,
-        conversion: ConversionType = None,
+        conversion: ConversionType | None = None,
         *,
         state: EpisodeState = None,
         media_type: str | None = None,
@@ -107,7 +107,7 @@ class WebtoonMediaManger:
         media_no: int,
         # image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
         purpose: str,
-        conversion: ConversionType | None = None,
+        conversion: ConversionType | None | None = None,
         *,
         state: EpisodeState = None,
         media_type: str | None = None,
@@ -267,7 +267,7 @@ class WebtoonMediaData:
     media_type: str
     name: str
     state: EpisodeState
-    conversion: ConversionType
+    conversion: ConversionType | None
     path: Path | None
     data: ValueType
     added_at: datetime.datetime
