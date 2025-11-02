@@ -19,8 +19,14 @@ class WebtoonValue:
         value: ValueType,
         conversion: ConversionType | None = None,
         *,
-        primitive_conversion: bool = True,
+        primitive_conversion: bool,
     ) -> tuple[ConversionType | None, typing.LiteralString, PrimitiveType]:
+        """
+        path, data, conversion이 같이 있는 테이블이라면 primitive_conversion을 켜고,
+        data와 conversion만 있는 테이블이라면 끄세요. (테이블에 dump 의무가 있을 때 간편)
+
+        혹은 path값이 주어진 경우라면 켜는 방법으로 하세요. (값에서 conversion을 그냥 받아와야 할 때 간편)
+        """
         if conversion is None:
             conversion = self._get_conversion(value, primitive_conversion=primitive_conversion)
             query = self._get_query(conversion, cast_primitive=False)
@@ -62,6 +68,8 @@ class WebtoonValue:
         match conversion:
             case None:
                 raise ValueError("Conversion value is not provided")
+            case "json" | "jsonb":
+                return JsonData.from_raw(raw_bytes.decode("utf-8"))
             case "null":
                 return None
             case "str":
@@ -89,7 +97,7 @@ class WebtoonValue:
                 return "1"
             case False:
                 return "0"
-            case JsonData():
+            case JsonData():  # 파일로 덤프할 시에는 json과 jsonb 차이 없음
                 return value.dump()
             case str():
                 return value
@@ -100,14 +108,14 @@ class WebtoonValue:
             case _:
                 raise ValueError(f"Invalid type to convert: {type(value).__name__!r}")
 
-    def _get_conversion(self, value: ValueType, *, primitive_conversion: bool = False) -> ConversionType | None:
+    def _get_conversion(self, value: ValueType, *, primitive_conversion) -> ConversionType | None:
         match value:
             case None:
                 return "null"
             case JsonData(conversion="json"):
                 return "json"
             case JsonData(conversion="jsonb"):
-                return "json"
+                return "jsonb"
             case Path():
                 return "path"
             case bool():
@@ -126,11 +134,11 @@ class WebtoonValue:
                 raise ValueError(f"Invalid type to convert: {type(value).__name__}")
 
     def _get_query(self, conversion: ConversionType | None, *, cast_primitive: bool = False) -> typing.LiteralString:
-        # cast_primitive는 redundant한 conversion이니 굳이 하지 않아도 됨.
-        # 해야 하는 경우는 conversion의 값과 primitive의 type이 정확하기 일치하는지 확인하고 싶을 때.
-        # 그러나 이미 conversion이 주어지지 않는 경우 _get_conversion 단계에서 체크가 이루어지니 필요가 없고,
-        # 만약 필요하다면 conversion과 data가 같이 주어지는 경우, data가 conversion과 일치하는 것을 보증하기 위해
-        # cast_primitive를 사용해야 할 수 있다.
+        # cast_primitive는 redundant한 conversion이니 굳이 하지 않아도 됨.
+        # 해야 하는 경우는 conversion의 값과 primitive의 type이 정확하기 일치하는지 확인하고 싶을 때.
+        # 그러나 이미 conversion이 주어지지 않는 경우 _get_conversion 단계에서 체크가 이루어지니 필요가 없고,
+        # 만약 필요하다면 conversion과 data가 같이 주어지는 경우, data가 conversion과 일치하는 것을 보증하기 위해
+        # cast_primitive를 사용해야 할 수 있다.
         match conversion:
             case None | "null" | "path":
                 return "?"
