@@ -224,9 +224,11 @@ class WebtoonConnectionManager:
 
     def _set_journal_mode(self) -> None:
         journal_mode = None if self.settings.journal_mode is None else str(self.settings.journal_mode).lower()
-        if self.in_memory and journal_mode not in (None, "memory", "off"):
+        if journal_mode is None:
+            return
+        if self.in_memory and journal_mode not in ("memory", "off"):
             raise WebtoonOpenError(f"Invalid journal mode for in-memory database: {journal_mode}")
-        if journal_mode is not None and journal_mode not in JOURNAL_MODES:
+        if journal_mode not in JOURNAL_MODES:
             raise WebtoonOpenError(f"Invalid journal mode: {journal_mode}")
         self._connection().execute(f"PRAGMA journal_mode={journal_mode}")
 
