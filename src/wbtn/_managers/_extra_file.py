@@ -48,7 +48,7 @@ class WebtoonExtraFileManager:
         if data is _NOTSET:
             query, value = "?", None
         else:
-            conversion, query, value = self.webtoon.value.dump_conversion_query_value(data)
+            conversion, query, value = self.webtoon.value.dump_conversion_query_value(data, primitive_conversion=True)
 
         file_id, = self.webtoon.execute(
             f"INSERT INTO extra_files (purpose, conversion, path, data, added_at) VALUES (?, ?, ?, {query}, ?) RETURNING id",

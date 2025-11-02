@@ -73,7 +73,7 @@ class WebtoonEpisode(typing.MutableMapping[str, ValueType]):
             return self.webtoon.value.load(conversion, value)
 
     def __setitem__(self, purpose: str, value: ValueType) -> None:
-        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=False)
         try:
             self.webtoon.execute(
                 f"""INSERT OR REPLACE INTO episodes_extra (episode_no, purpose, conversion, value) VALUES (?1, ?2, ?3, {query.replace("?", "?4")})""",

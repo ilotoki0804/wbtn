@@ -123,7 +123,7 @@ class WebtoonMediaManger:
                 if conversion:
                     raise ValueError("conversion cannot be provided directly through conversion parameter.")
 
-            conversion, query, data = self.webtoon.value.dump_conversion_query_value(data, conversion)
+            conversion, query, data = self.webtoon.value.dump_conversion_query_value(data, conversion, primitive_conversion=True)
 
             current_time = timestamp()
             media_id, = cur.execute(
@@ -155,7 +155,7 @@ class WebtoonMediaManger:
         if media.path is not None and media.data is not None:
             raise ValueError("Only data or path should be provided.")
 
-        conversion, query, data = self.webtoon.value.dump_conversion_query_value(media.data)
+        conversion, query, data = self.webtoon.value.dump_conversion_query_value(media.data, primitive_conversion=True)
         result = self.webtoon.execute(f"""
             UPDATE media
             SET

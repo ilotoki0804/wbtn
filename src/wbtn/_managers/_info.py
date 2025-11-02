@@ -92,12 +92,12 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
         return value
 
     def set(self, name: str, value: ValueType) -> None:
-        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=False)
         with self.webtoon.connection.cursor() as cur:
             cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
 
     def setdefault(self, name: str, value: ValueType) -> None:
-        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=False)
         with self.webtoon.connection.cursor() as cur:
             try:
                 cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
