@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+from pathlib import Path
 import typing
 
-from ._base import JsonType
+from ._base import ConversionType, JsonType, PrimitiveType, ValueType, WebtoonType
 
 __all__ = ("JsonData",)
 
@@ -99,3 +100,94 @@ class JsonData(typing.Generic[ResultType]):
 
 
 # sqlite3.register_adapter(JsonData, JsonData.load)
+
+
+class WebtoonData:
+    # 각각 path, data, conversion에 해당
+    webtoon: WebtoonType
+    is_bytes_raw: bool
+    _raw: tuple[PrimitiveType, ConversionType | None, str | None] | None
+    _parsed: tuple[ValueType, ConversionType | None, Path | None] | None
+    __match_args__ = "path", "value", "conversion"
+
+    def __init__(self, webtoon: WebtoonType, *, _raw=None, _parsed=None, is_bytes_raw: bool | None = None):
+        raise NotImplementedError  # todo
+        if (_raw is None) + (_parsed is None) != 1:
+            raise ValueError("Only one of values (among raw, parsed) should be provided.")
+        self.webtoon = webtoon
+        self.is_bytes_raw = is_bytes_raw if is_bytes_raw is not None else _parsed[0] is not None if _raw is None else _raw[0] is None  # type: ignore
+        self._raw = _raw
+        self._parsed = _parsed
+
+    @classmethod
+    def from_raw(cls, webtoon: WebtoonType, raw_value: PrimitiveType, conversion: ConversionType | None, raw_path: str | None = None):
+        return cls(webtoon, _raw=(raw_value, conversion, raw_path), is_bytes_raw=False)
+
+    @classmethod
+    def from_bytes_raw(cls, webtoon: WebtoonType, raw_value: bytes, conversion: ConversionType | None, raw_path: str | None):
+        return cls(webtoon, _raw=(raw_value, conversion, raw_path), is_bytes_raw=True)
+
+    @classmethod
+    def from_parsed(cls, webtoon: WebtoonType, value: ValueError, conversion: ConversionType | None, path: Path | None = None, *, is_bytes_raw: bool | None = None):
+        return cls(webtoon, _parsed=(path, value, conversion), is_bytes_raw=is_bytes_raw)
+
+    def parse(self, store_parsed: bool = True):
+        match self._raw, self._parsed, self.is_bytes_raw:
+            case _, parsed, _ if parsed:
+                return parsed
+            case (value, conversion, path), _, False:
+                value = self.webtoon.value.load(conversion, value)
+                path = self.webtoon.path.load(path)
+                result = value, conversion, path
+                if store_parsed:
+                    self._raw, self._parsed = None, result
+                return result
+            case (value, conversion, path), _, True:
+                assert isinstance(value, bytes), "The value of bytes raw must be bytes."
+                value = self.webtoon.value.load_bytes(conversion, value)
+                path = self.webtoon.path.load(path)
+                result = value, conversion, path
+                if store_parsed:
+                    self._raw, self._parsed = None, result
+                return result
+            case _:
+                raise ValueError("Invalid set of values.")
+
+    def dump(self, store_dumped: bool = False):
+        match self._raw, self._parsed, self.is_bytes_raw:
+            case raw, _, _ if raw:
+                return raw
+            case _, (value, conversion, path), False:
+                conversion, query, value = self.webtoon.value.dump_conversion_query_value(
+                    value, conversion, primitive_conversion=path is not None)
+                path = self.webtoon.path.dump(path)
+                result = value, conversion, path
+                if store_dumped:
+                    self._raw, self._parsed = result, None
+                return result
+            case _, (value, conversion, path), True:
+                conversion = conversion or self.webtoon.value._get_conversion(
+                    value, primitive_conversion=path is not None)
+                value = self.webtoon.value.dump_bytes(value)
+                path = self.webtoon.path.dump(path)
+                result = value, conversion, path
+                if store_dumped:
+                    self._raw, self._parsed = result, None
+                return result
+            case _:
+                raise ValueError("Invalid set of values.")
+
+    @property
+    def path(self) -> Path | None:
+        value, conversion, path = self.parse()
+        return path
+
+    @property
+    def value(self) -> ValueType:
+        value, conversion, path = self.parse()
+        return value
+
+    @property
+    def conversion(self) -> ConversionType | None:
+        value, conversion, path = self.parse()
+        return conversion
