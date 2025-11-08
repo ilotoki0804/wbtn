@@ -184,7 +184,7 @@ def test_clear_with_delete_system_removes_all(webtoon_instance: Webtoon):
     """clear(delete_system=True)는 시스템 키도 삭제"""
     webtoon_instance.info["user_key"] = "value"
 
-    webtoon_instance.info.clear(delete_system=True)
+    webtoon_instance.info.clear(system=True)
 
     assert "user_key" not in webtoon_instance.info
     assert "sys_agent" not in webtoon_instance.info
@@ -195,33 +195,33 @@ def test_clear_with_delete_system_removes_all(webtoon_instance: Webtoon):
 
 def test_cannot_delete_system_key_by_default(webtoon_instance: Webtoon):
     """기본적으로 시스템 키는 삭제할 수 없음"""
-    with pytest.raises(KeyError, match="system key"):
+    with pytest.raises(KeyError, match="Cannot modify or delete"):
         webtoon_instance.info.delete("sys_agent")
 
 
 def test_can_delete_system_key_with_flag(webtoon_instance: Webtoon):
     """delete_system=True 플래그로 시스템 키 삭제 가능"""
-    webtoon_instance.info.delete("sys_agent", delete_system=True)
+    webtoon_instance.info.delete("sys_agent", system=True)
     assert "sys_agent" not in webtoon_instance.info
 
 
 def test_cannot_pop_system_key_by_default(webtoon_instance: Webtoon):
     """기본적으로 시스템 키는 pop할 수 없음"""
-    with pytest.raises(KeyError, match="system key"):
+    with pytest.raises(KeyError, match="Cannot modify or delete"):
         webtoon_instance.info.pop("sys_agent_version")
 
 
 def test_can_pop_system_key_with_flag(webtoon_instance: Webtoon):
     """delete_system=True 플래그로 시스템 키 pop 가능"""
-    value = webtoon_instance.info.pop("sys_agent_version", delete_system=True)
+    value = webtoon_instance.info.pop("sys_agent_version", system=True)
     assert value is not None
     assert "sys_agent_version" not in webtoon_instance.info
 
 
 def test_can_overwrite_system_key(webtoon_instance: Webtoon):
-    """시스템 키는 덮어쓰기 가능"""
+    """시스템 키는 system=True로 덮어쓰기 가능"""
     original = webtoon_instance.info["sys_agent"]
-    webtoon_instance.info["sys_agent"] = "modified"
+    webtoon_instance.info.set("sys_agent", "modified", system=True)
     assert webtoon_instance.info["sys_agent"] == "modified"
     assert webtoon_instance.info["sys_agent"] != original
 
@@ -291,7 +291,7 @@ def test_get_conversion_for_stored_value(webtoon_instance: Webtoon):
     """저장된 값의 conversion type 확인"""
     webtoon_instance.info["test"] = "string"
     conversion = webtoon_instance.info.get_conversion("test")
-    assert conversion == "str"  # primitive_conversion=True가 기본값으로 변경됨
+    assert conversion is None  # primitive_conversion=False이므로 str은 conversion이 None
 
 
 def test_get_conversion_for_json_value(webtoon_instance: Webtoon):

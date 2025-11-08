@@ -25,8 +25,8 @@ def test_webtoon_value_initialization(webtoon_instance: Webtoon):
 def test_dump_conversion_query_value_with_none():
     """None 값에 대한 dump_conversion_query_value"""
     with Webtoon(":memory:") as webtoon:
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(None)
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(None)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(None, primitive_conversion=True)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(None, primitive_conversion=True)
 
         assert conversion == "null"
         assert query == "?"
@@ -38,7 +38,7 @@ def test_dump_conversion_query_value_with_string():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         test_string = "hello world"
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_string)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_string, primitive_conversion=True)
 
         assert conversion == "str"
         assert query == "?"
@@ -50,7 +50,7 @@ def test_dump_conversion_query_value_with_integer():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         test_int = 42
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_int)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_int, primitive_conversion=True)
 
         assert conversion == "int"
         assert query == "?"
@@ -62,7 +62,7 @@ def test_dump_conversion_query_value_with_float():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         test_float = 3.14159
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_float)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_float, primitive_conversion=True)
 
         assert conversion == "float"
         assert query == "?"
@@ -73,7 +73,7 @@ def test_dump_conversion_query_value_with_boolean_true():
     """True 값에 대한 dump_conversion_query_value"""
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(True)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(True, primitive_conversion=True)
 
         assert conversion == "bool"
         assert query == "?"
@@ -84,7 +84,7 @@ def test_dump_conversion_query_value_with_boolean_false():
     """False 값에 대한 dump_conversion_query_value"""
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(False)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(False, primitive_conversion=True)
 
         assert conversion == "bool"
         assert query == "?"
@@ -96,7 +96,7 @@ def test_dump_conversion_query_value_with_bytes():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         test_bytes = b"binary data"
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_bytes)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_bytes, primitive_conversion=True)
 
         assert conversion == "bytes"
         assert query == "?"
@@ -108,7 +108,7 @@ def test_dump_conversion_query_value_with_json_data():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         json_obj = JsonData(data={"key": "value"}, conversion="json")
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj, primitive_conversion=True)
 
         assert conversion == "json"
         assert query == "json(?)"
@@ -120,10 +120,10 @@ def test_dump_conversion_query_value_with_jsonb_data():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         json_obj = JsonData(data=[1, 2, 3], conversion="jsonb")
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj, primitive_conversion=True)
 
-        assert conversion == "json"
-        assert query == "json(?)"
+        assert conversion == "jsonb"
+        assert query == "jsonb(?)"
         assert dumped == '[1,2,3]'
 
 
@@ -135,7 +135,7 @@ def test_dump_conversion_query_value_with_path(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # Use webtoon.value directly
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_file)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(test_file, primitive_conversion=True)
 
         assert conversion == "path"
         assert query == "?"
@@ -150,7 +150,8 @@ def test_dump_conversion_query_value_with_explicit_conversion():
         test_int = 100
         conversion, query, dumped = webtoon.value.dump_conversion_query_value(
             test_int,
-            conversion="int"
+            conversion="int",
+            primitive_conversion=True
         )
 
         assert conversion == "int"
@@ -247,7 +248,7 @@ def test_get_primitive_conversion_with_jsonb_data():
         # Use webtoon.value directly
         json_obj = JsonData(data=[], conversion="jsonb")
         conversion = webtoon.value.get_primitive_conversion(json_obj)
-        assert conversion == "json"
+        assert conversion == "jsonb"
 
 
 def test_get_primitive_conversion_with_invalid_type():
@@ -709,7 +710,7 @@ def test_get_conversion_with_none():
     """None의 conversion"""
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
-        result = webtoon.value._get_conversion(None)
+        result = webtoon.value._get_conversion(None, primitive_conversion=True)
         assert result == "null"
 
 
@@ -718,7 +719,7 @@ def test_get_conversion_with_json_data_json():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         json_obj = JsonData(data={}, conversion="json")
-        result = webtoon.value._get_conversion(json_obj)
+        result = webtoon.value._get_conversion(json_obj, primitive_conversion=True)
         assert result == "json"
 
 
@@ -727,15 +728,15 @@ def test_get_conversion_with_json_data_jsonb():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
         json_obj = JsonData(data=[], conversion="jsonb")
-        result = webtoon.value._get_conversion(json_obj)
-        assert result == "json"
+        result = webtoon.value._get_conversion(json_obj, primitive_conversion=True)
+        assert result == "jsonb"
 
 
 def test_get_conversion_with_path():
     """Path의 conversion"""
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
-        result = webtoon.value._get_conversion(Path("/tmp"))
+        result = webtoon.value._get_conversion(Path("/tmp"), primitive_conversion=True)
         assert result == "path"
 
 
@@ -743,7 +744,7 @@ def test_get_conversion_with_bool():
     """bool의 conversion"""
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
-        result = webtoon.value._get_conversion(True)
+        result = webtoon.value._get_conversion(True, primitive_conversion=True)
         assert result == "bool"
 
 
@@ -997,7 +998,7 @@ def test_round_trip_conversion_with_string():
         # Use webtoon.value directly
         original = "test string"
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == original
@@ -1009,7 +1010,7 @@ def test_round_trip_conversion_with_integer():
         # Use webtoon.value directly
         original = 42
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == original
@@ -1022,7 +1023,7 @@ def test_round_trip_conversion_with_json_data():
         original_data = {"test": [1, 2, 3], "nested": {"key": "value"}}
         original = JsonData(data=original_data)
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert isinstance(loaded, JsonData)
@@ -1035,7 +1036,7 @@ def test_round_trip_conversion_with_bytes():
         # Use webtoon.value directly
         original = b"binary data \x00\x01\x02"
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == original
@@ -1047,7 +1048,7 @@ def test_round_trip_conversion_with_boolean():
         # Use webtoon.value directly
 
         for original in [True, False]:
-            conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+            conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
             loaded = webtoon.value.load(conversion, dumped)
             assert loaded == original
 
@@ -1086,7 +1087,7 @@ def test_special_case_empty_string():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value("")
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value("", primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == ""
@@ -1097,7 +1098,7 @@ def test_special_case_empty_bytes():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(b"")
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(b"", primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == b""
@@ -1108,7 +1109,7 @@ def test_special_case_zero_integer():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(0)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(0, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == 0
@@ -1119,7 +1120,7 @@ def test_special_case_zero_float():
     with Webtoon(":memory:") as webtoon:
         # Use webtoon.value directly
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(0.0)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(0.0, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert loaded == 0.0
@@ -1131,7 +1132,7 @@ def test_special_case_negative_numbers():
         # Use webtoon.value directly
 
         for original in [-1, -100, -3.14]:
-            conversion, query, dumped = webtoon.value.dump_conversion_query_value(original)
+            conversion, query, dumped = webtoon.value.dump_conversion_query_value(original, primitive_conversion=True)
             loaded = webtoon.value.load(conversion, dumped)
             assert loaded == original
 
@@ -1142,7 +1143,7 @@ def test_special_case_large_numbers():
         # Use webtoon.value directly
 
         large_int = 999999999999999999
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(large_int)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(large_int, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
         assert loaded == large_int
 
@@ -1153,7 +1154,7 @@ def test_special_case_empty_json_object():
         # Use webtoon.value directly
 
         json_obj = JsonData(data={})
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert isinstance(loaded, JsonData)
@@ -1166,7 +1167,7 @@ def test_special_case_empty_json_array():
         # Use webtoon.value directly
 
         json_obj = JsonData(data=[])
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert isinstance(loaded, JsonData)
@@ -1187,7 +1188,7 @@ def test_special_case_complex_nested_json():
         }
         json_obj = JsonData(data=complex_data)
 
-        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj)
+        conversion, query, dumped = webtoon.value.dump_conversion_query_value(json_obj, primitive_conversion=True)
         loaded = webtoon.value.load(conversion, dumped)
 
         assert isinstance(loaded, JsonData)

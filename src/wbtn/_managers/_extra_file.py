@@ -6,6 +6,7 @@ import typing
 from pathlib import Path
 
 from .._base import (
+    GET_VALUE,
     ConversionType,
     ValueType,
     fromtimestamp,
@@ -28,14 +29,18 @@ class WebtoonExtraFileManager:
         return self.iterate()
 
     def __len__(self) -> int:
-        length, = self.webtoon.execute("SELECT count() FROM extra_files")
+        length, = self.webtoon.execute("SELECT count() FROM ExtraFile")
         return length
 
     def add_path(self, path: Path, conversion: ConversionType | None, purpose: str | None = None) -> ExtraFile:
         return self._add(path, purpose, conversion=conversion)
 
-    def add_data(self, path: Path, data: ValueType, purpose: str | None = None) -> ExtraFile:
-        return self._add(path, purpose, data=data)
+    def add_value(self, path: Path, value: ValueType, purpose: str | None = None) -> ExtraFile:
+        return self._add(path, purpose, value=value)
+
+    def dump(self, extra_file: ExtraFile, *, mkdir: bool = True, exist_ok: bool = False):
+        # extra_file의 데이터를 path에 dump함
+        raise NotImplementedError()
 
     def _add(
         self,
@@ -43,62 +48,63 @@ class WebtoonExtraFileManager:
         purpose: str | None = None,
         *,
         conversion: ConversionType | None = None,
-        data: ValueType = _NOTSET,  # type: ignore
+        value: ValueType = _NOTSET,  # type: ignore
     ) -> ExtraFile:
-        if data is _NOTSET:
+        if value is _NOTSET:
             query, value = "?", None
         else:
-            conversion, query, value = self.webtoon.value.dump_conversion_query_value(data, primitive_conversion=True)
+            conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=True)
 
         file_id, = self.webtoon.execute(
-            f"INSERT INTO extra_files (purpose, conversion, path, data, added_at) VALUES (?, ?, ?, {query}, ?) RETURNING id",
-            (purpose, conversion, self.webtoon.path.dump(path), value, time := timestamp()),
+            f"INSERT INTO ExtraFile (kind, value, conversion, path, added_at) VALUES (?, {query}, ?, ?, ?) RETURNING file_id",
+            (purpose, value, conversion, self.webtoon.path.dump(path), time := timestamp()),
         )
         return ExtraFile.from_id(file_id, self.webtoon)
 
     def set(self, extra_file: ExtraFile) -> None:
         result = self.webtoon.execute(
-            "UPDATE extra_files SET purpose = ?, conversion = ?, path = ?, data = ?, added_at = ? WHERE id = ? RETURNING 1",
-            (extra_file.purpose, extra_file.conversion, self.webtoon.path.dump(extra_file.path), extra_file.data, extra_file.added_at.timestamp(), extra_file.id)
+            "UPDATE ExtraFile SET kind = ?, value = ?, conversion = ?, path = ?, added_at = ? WHERE file_id = ? RETURNING 1",
+            (extra_file.kind, extra_file.value, extra_file.conversion, self.webtoon.path.dump(extra_file.path), extra_file.added_at.timestamp(), extra_file.file_id)
         )
         if result is None:
             raise KeyError(extra_file)
 
-    def iterate(self, purpose: str | None = _NOTSET) -> typing.Iterator[ExtraFile]:  # type: ignore
-        if purpose is _NOTSET:
-            query = "SELECT * FROM extra_files"
+    def iterate(self, kind: str | None = _NOTSET) -> typing.Iterator[ExtraFile]:  # type: ignore
+        if kind is _NOTSET:
+            query = f"SELECT file_id, kind, {GET_VALUE}, conversion, path, added_at FROM ExtraFile"
             params = ()
-        elif purpose is None:
-            query = "SELECT * FROM extra_files WHERE purpose IS NULL"
+        elif kind is None:
+            query = f"SELECT file_id, kind, {GET_VALUE}, conversion, path, added_at FROM ExtraFile WHERE kind IS NULL"
             params = ()
         else:
-            query = "SELECT * FROM extra_files WHERE purpose == ?"
-            params = (purpose,)
+            query = f"SELECT file_id, kind, {GET_VALUE}, conversion, path, added_at FROM ExtraFile WHERE kind == ?"
+            params = (kind,)
         with self.webtoon.execute_with(query, params) as cur:
-            for id, purpose, conversion, path, data, added_at in cur:
-                value = self.webtoon.value.load(conversion, data)
-                yield ExtraFile(id, purpose, conversion, self.webtoon.path.load_str(path), value, fromtimestamp(added_at))
+            for file_id, kind, value, conversion, path, added_at in cur:
+                value = self.webtoon.value.load(conversion, value)
+                yield ExtraFile(file_id, kind, value, conversion, self.webtoon.path.load_str(path), fromtimestamp(added_at))
 
     def remove(self, file: ExtraFile) -> None:
-        result = self.webtoon.execute("DELETE FROM extra_files WHERE id == ? RETURNING 1", (file.id,))
+        result = self.webtoon.execute("DELETE FROM ExtraFile WHERE file_id == ? RETURNING 1", (file.file_id,))
         if result is None:
             raise KeyError(file)
 
 
 @dataclass(slots=True)
 class ExtraFile:
-    id: int
-    purpose: str | None
+    file_id: int
+    kind: str | None
+    value: ValueType
     conversion: ConversionType | None
     path: Path
-    data: ValueType
     added_at: datetime.datetime
 
+    # TODO: 이것도 데이터를 바로 불러오는 건 좀 부담될 것 같음
     @classmethod
     def from_id(cls, file_id: int, webtoon: WebtoonType) -> ExtraFile:
-        result = webtoon.execute("SELECT * FROM extra_files WHERE id == ?", (file_id if isinstance(file_id, int) else file_id.id,))
+        result = webtoon.execute(f"SELECT file_id, kind, {GET_VALUE}, conversion, path, added_at FROM ExtraFile WHERE file_id == ?", (file_id,))
         if result is None:
             raise KeyError(file_id)
-        id, purpose, conversion, path, data, added_at = result
-        value = webtoon.value.load(conversion, data)
-        return ExtraFile(id, purpose, conversion, webtoon.path.load_str(path), value, fromtimestamp(added_at))
+        file_id, kind, value, conversion, path, added_at = result
+        value = webtoon.value.load(conversion, value)
+        return ExtraFile(file_id, kind, value, conversion, webtoon.path.load_str(path), fromtimestamp(added_at))

@@ -160,6 +160,44 @@ class WebtoonConnectionManager:
         return uri
 
     def _configure_pragma(self) -> None:
+        """
+        wbtn에서는 여러가지 pragma statement를 이용해서 웹툰의 상태를 확인하고 관리합니다.
+
+        - application_id
+            항상 0x5742544e 값으로 설정되어 있습니다. 이 값은 hex로 "WBTN"에 해당합니다.
+            wbtn 패키지는 이 값을 바탕으로 해당 테이블이 wbtn 파일인지 체크합니다.
+            파일 확장자나 이름, 파일 구조 등은 패키지가 wbtn 파일로 인식하는지 여부에 관여하지 않습니다.
+            오로지 이 값이 웹툰 파일인지 여부를 결정합니다.
+            단, 빈 파일이 주어지는 경우 오류를 발생시키는 대신 웹툰 파일을 초기화합니다.
+            connection 설정에서 bypass_integrity_check이 False로 설정된 경우 이 값은 체크되지 않으며
+            application_id는 0x5742544e 값으로 초기화합니다.
+
+        - user_version
+            이 값으로 wbtn 파일의 '스키마' 버전을 확인합니다. 따라서 내부적으로는 스키마 버전이라고 부릅니다.
+            기존 SQL 스크립트들과는 호환되지만 기존과는 스키마가 다른 경우 이 값은 1씩 증가합니다.
+            새로운 스키마에 기존 SQL 스크립트가 호환되지 않는 경우 셋째 자리에서 올림합니다.
+            이 스키마 버전은 올릴 수만 있으며 다운그레이드는 불가합니다.
+            현재 버전은 1000이며 미래에는 더 많은 스키마 변화가 있을 수 있습니다.
+
+            스키마 버전이 호환되지 않는다고 여겨질 때 wbtn 패키지는 오류를 발생시키고 종료합니다.
+            그러나 어떤 이유에서건 파일을 강제로 열고 싶다면 다음의 두 환경 변수를 이용해 강제로 열도록 할 수 있습니다.
+            WBTN_FORCE_OPEN_FUTURE_FORMAT: 웹툰 버전이 상위 버전이고 호환되지 않을 때 오류를 발생시키지 않습니다.
+            WBTN_FORCE_OPEN_PAST_FORMAT: 웹툰 버전이 하위 버전이고 호환되지 않을 때 오류를 발생시키지 않습니다.
+            두 환경 변수 중 필요한 값을 0이 아닌 값으로 설정하면 파일을 열 수 있습니다.
+
+            connection 설정에서 bypass_integrity_check이 False로 설정된 경우 이 값은 체크되지 않으며
+            user_version은 현재 wbtn 패키지의 스키마 버전으로 초기화됩니다.
+
+        - foreign_keys=ON
+            외래 키를 활성화합니다. 외래 키 관련 동작이 일어날 수 있도록 합니다.
+
+        - journal_mode
+            웹툰 파일의 저널링 방식을 변경합니다. 자세한 설명은 다음 문서를 확인하세요.
+            https://sqlite.org/pragma.html#pragma_journal_mode
+
+            기본값은 sqlite의 기본값인 DELETE로 설정되어 있습니다.
+            값을 변경하려면 connection 설정에서 journal_mode를 변경하세요.
+        """
         if not self.settings.bypass_integrity_check:
             self._check_application_id()
             self._check_user_version()
@@ -237,63 +275,129 @@ class WebtoonConnectionManager:
             cur.execute("DROP TABLE IF EXISTS episodes_idx")
 
     def _add_tables(self) -> None:
+        """
+        wbtn은 다양한 테이블을 이용해 정보를 관리합니다.
+
+        ## value의 처리 방식
+
+        모든 사용자의 커스텀 값을 받을 수 있는 테이블들에서는 conversion과 value column이 존재합니다.
+        일부 column은 path column까지 존재할 수도 있습니다.
+
+        Sqlite와 파이썬은 서로 운용하는 타입 시스템이 다르고 특별한 처리를 요구하는 경우가 종종 있습니다.
+        가장 간단한 예로 파이썬은 True와 False가 존재하지만 이 둘은 Sqlite에 들어가면 1과 0으로 처리됩니다.
+        이렇게 처리된 데이터를 다시 파이썬으로 불러오게 되면 원래의 boolean 값이 아닌 1과 0으로 불러와집니다.
+        이런 문제를 방지하기 위해 웹툰 파일에 데이터를 저장할 때 파이썬으로 다시 불러올 때에 타입을 정상적으로 복구하기
+        위해서 conversion이라는 column에 별도의 타입 정보를 저장합니다.
+        이 conversion의 값은 값을 저장할 때 값을 어떻게 불러올지에 대한 정보를 저장하고 값을 로드할 때 이 값을 기준으로
+        값을 복구하게 됩니다.
+
+        ## 테이블들
+
+        - Info
+            웹툰에 대한 다양한 정보와 메타데이터를 저장합니다.
+            name에는 정보의 이름, conversion/value에는 값이 기록됩니다.
+            name이 sys_로 시작되는 경우 특별한 시스템 정보입니다.
+            이러한 데이터들은 변경, 수정하는 데에 특별한 제약이 따를 수 있습니다.
+        - Episode/EpisodeInfo
+            Episode 테이블은 웹툰의 회차를 표현합니다.
+            Episode 테이블 자체에는 거의 데이터가 존재하지 않기 때문에
+            대부분의 Episode와 관련된 정보는 EpisodeInfo에 저장됩니다.
+        - Content/ContentInfo
+            Content의 ExtraFile가 더불어 value를 path에 저장할 수 있는 특별한 옵션이 있습니다.
+            path는 base path와의 상대적인 경로가 기록되며 경로가 로드되거나 덤프될 때 자동으로 실제 경로로 변환됩니다.
+            자세한 내용은 [WebtoonPathManager](./_path/WebtoonPathManager)를 참고하세요.
+
+            ContentInfo는 Content에 담을수 없는 추가적인 Content에 대한 정보를 담는 역할을 합니다.
+            예를 들어 해당 Content의 MIME type이나 이미지 파일의 높이와 너비, 현재 상태 등의 다양한 메타데이터를 저장할 수 있습니다.
+            단, ContentInfo는 path를 활용해 외부 데이터로 저장할 수 없습니다. path가 필요한 경우
+            Content나 ExtraFile로 데이터를 추가하세요.
+        - ExtraFile
+            웹툰 디렉토리에 존재하는 부가적인 파일에 대한 정보를 보관할 수 있습니다.
+            Info의 경우 반드시 table 내부에 값이 보관되어 있어야 하지만 ExtraFile 테이블에 저장된 경우
+            데이터가 외부 경로에 저장될 수 있습니다.
+            또한, Info는 웹툰의 정보를 담기 위해 디자인된 반면, ExtraFile은 Content로는 표현될 수 없는
+            추가적인 파일들에 대한 사항을 기록하기 위해 디자인되었습니다.
+
+        위에 명시된 6개의 table만 문제 없이 존재한다면 웹툰 파일을 인식할 수 있습니다.
+        사용자는 별도의 테이블이나 인덱스를 만들어 웹툰 파일을 보충할 수도 있습니다.
+        """
         with self.cursor() as cur:
             # sqlite의 문서에서는 WITHOUT ROWID를 사용할 때는 성능을 위해 각각의 row가 200바이트를 넘지 않을 것을 권장하고 있지만
             # info 테이블에서 그 값을 넘어서는 값이 들어갈 확률이 꽤 있기에
             # 혹시나 모를 특정한 상황에서의 성능 하락을 막기 위해 WITHOUT ROWID를 사용하지 않음.
-            cur.execute("CREATE TABLE IF NOT EXISTS info (name TEXT PRIMARY KEY NOT NULL, conversion TEXT, value)")
+            cur.execute("CREATE TABLE IF NOT EXISTS Info (name TEXT UNIQUE NOT NULL, conversion TEXT, value)")
             # table 이름을 복수로 해야 하는지 단수로 해야 하는지, case는 어떻게 해야 하는지는 사람마다 의견이 다르기에 여기서는 내 선호대로 복수형, snake case를 사용
             # 참고로 'information'은 uncountable이므로 info로만 사용
             # 참고1: https://stackoverflow.com/questions/338156/table-naming-dilemma-singular-vs-plural-names
             # 참고2: https://stackoverflow.com/questions/7662/database-table-and-column-naming-conventions
-            cur.execute("""CREATE TABLE IF NOT EXISTS episodes (
+            # name, id, state와 같은 값들은 standard extra columns로 정의하기
+            cur.execute("""CREATE TABLE IF NOT EXISTS Episode (
+                -- 구분자들
                 episode_no INTEGER PRIMARY KEY NOT NULL,
-                name TEXT,
-                state,
-                id UNIQUE,
+                -- 시간 정보
                 added_at TIMESTAMP NOT NULL
             )""")
-            cur.execute("""CREATE TABLE IF NOT EXISTS episodes_extra (
+            cur.execute("""CREATE TABLE IF NOT EXISTS EpisodeInfo (
+                -- 구분자들
                 episode_no INTEGER NOT NULL,
-                purpose NOT NULL,
-                conversion TEXT,
+                kind TEXT NOT NULL,
+                -- 데이터
                 value,
-                UNIQUE (episode_no, purpose) ON CONFLICT ABORT,
-                FOREIGN KEY(episode_no) REFERENCES episodes(episode_no) ON DELETE CASCADE ON UPDATE CASCADE
+                conversion TEXT,
+                -- table constraints
+                UNIQUE (episode_no, kind) ON CONFLICT ABORT,
+                FOREIGN KEY(episode_no) REFERENCES Episode(episode_no) ON DELETE CASCADE ON UPDATE CASCADE
             )""")
-            cur.execute("""CREATE TABLE IF NOT EXISTS media (
-                id INTEGER PRIMARY KEY NOT NULL,
+            cur.execute("""CREATE TABLE IF NOT EXISTS Content (
+                -- 구분자들
+                content_id INTEGER PRIMARY KEY NOT NULL,
                 episode_no INTEGER NOT NULL,
-                media_no INTEGER NOT NULL,
-                purpose NOT NULL,
-                state,
-                media_type TEXT,
-                name TEXT,
+                content_no INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                -- 데이터
+                value,
                 conversion TEXT,
                 path,
-                data,
+                -- 시간 정보
                 added_at TIMESTAMP NOT NULL,
-                UNIQUE (episode_no, media_no, purpose) ON CONFLICT ABORT,
-                FOREIGN KEY(episode_no) REFERENCES episodes(episode_no) ON DELETE CASCADE ON UPDATE CASCADE
+                -- table constraints
+                UNIQUE (episode_no, content_no, kind) ON CONFLICT ABORT,
+                FOREIGN KEY(episode_no) REFERENCES Episode(episode_no) ON DELETE CASCADE ON UPDATE CASCADE
             )""")
-            cur.execute("""CREATE TABLE IF NOT EXISTS extra_files (
-                id INTEGER PRIMARY KEY NOT NULL,
-                purpose TEXT,
+            cur.execute("""CREATE TABLE IF NOT EXISTS ContentInfo (
+                -- 구분자들
+                content_id INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                -- 데이터
+                value,
+                conversion TEXT,
+                -- table constraints
+                UNIQUE (content_id, kind) ON CONFLICT ABORT,
+                FOREIGN KEY(content_id) REFERENCES Content(content_id) ON DELETE CASCADE ON UPDATE CASCADE
+            )""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS ExtraFile (
+                -- 구분자들
+                file_id INTEGER PRIMARY KEY NOT NULL,
+                kind TEXT,
+                -- 데이터 (path가 구분자 역할도 겸함)
+                value,
                 conversion TEXT,
                 path UNIQUE NOT NULL,
-                data BLOB,
+                -- 시간 정보
                 added_at TIMESTAMP NOT NULL
             )""")
-            # cur.execute("CREATE INDEX episodes_idx ON episodes (state, added_at)")
-            # cur.execute("CREATE INDEX episodes_extra_idx ON episodes_extra (episode_no, purpose, conversion, value)")
-            # cur.execute("CREATE INDEX media_idx ON media (episode_no, media_no, purpose, state, name, added_at)")
+            # cur.execute("CREATE INDEX EpisodeIdx ON Episode ()")
+            # cur.execute("CREATE INDEX EpisodeInfoIdx ON EpisodeInfo ()")
+            # cur.execute("CREATE INDEX ContentIdx ON Content ()")
+            # cur.execute("CREATE INDEX ContentInfoIdx ON ContentInfo ()")
+            # cur.execute("CREATE INDEX ExtraFileIdx ON ExtraFile ()")
 
     def _add_info(self) -> None:
         with self.cursor() as cur:
             current_time = timestamp()
             if not self.existed:
                 cur.execute("""
-                    INSERT INTO info (name, conversion, value) VALUES
+                    INSERT INTO Info (name, conversion, value) VALUES
                     -- about schema
                     ('sys_agent', NULL, 'wbtn-python'),
                     ('sys_agent_version', NULL, :version),
@@ -319,15 +423,3 @@ class WebtoonConnectionManager:
                     version=version,
                     created_at=current_time,
                 ))
-            # 반드시 필요한지 잘 모르겠음. 스키마가 업데이트되었을 때 sys_version을 그냥 올리는 게 나을 것 같음
-            # # 이 메소드는 '항상' not read only일 때만 실행되기 때문에
-            # # 완전히 필요 없는 컨디션이지만 어차피 cost도 별로 없고 또 혹시 모르니깐...
-            # if not self.settings.read_only:
-            #     cur.execute("""
-            #         INSERT OR REPLACE INTO info (name, json_encoded, value) VALUES
-            #         ('sys_last_opened_version', FALSE, :opened_version),
-            #         ('sys_last_opened_at', FALSE, :opened_at)
-            #     """, dict(
-            #         opened_version=version,
-            #         opened_at=current_time,
-            #     ))

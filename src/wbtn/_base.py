@@ -23,7 +23,7 @@ JsonType = _typing.Any
 RestrictedPrimitiveType = str | int | bool | float
 PrimitiveType = RestrictedPrimitiveType | bytes | None
 # EpisodeState = _typing.Literal["exists", "downloading", "empty", "impaired"]
-EpisodeState = str | None
+# TODO: datetime 추가
 ConversionType = _typing.Literal["json", "jsonb", "path", "str", "bytes", "int", "float", "bool", "null"]
 
 if _typing.TYPE_CHECKING:  # pragma: no cover
@@ -38,6 +38,7 @@ else:
 
 JOURNAL_MODES = ("delete", "truncate", "persist", "memory", "wal", "off")
 # EPISODE_STATE = (None, "exists", "empty", "impaired", "downloading")
+GET_VALUE: _typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
 
 
 def timestamp() -> float:

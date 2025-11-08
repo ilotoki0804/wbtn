@@ -227,7 +227,7 @@ def test_suggested_base_path_from_info(tmp_path: Path, webtoon_instance: Webtoon
     suggested = tmp_path / "suggested"
     suggested.mkdir()
 
-    webtoon_instance.info["sys_base_directory"] = str(suggested)
+    webtoon_instance.info.set("sys_base_directory", str(suggested), system=True)
 
     result = webtoon_instance.path.suggested_base_path()
     assert result == suggested
@@ -237,7 +237,7 @@ def test_suggested_base_path_none_when_not_set(webtoon_instance: Webtoon):
     """설정되지 않으면 None 반환"""
     # sys_base_directory 삭제
     if "sys_base_directory" in webtoon_instance.info:
-        webtoon_instance.info["sys_base_directory"] = None
+        webtoon_instance.info.set("sys_base_directory", None, system=True)
 
     result = webtoon_instance.path.suggested_base_path()
     assert result is None
@@ -250,7 +250,7 @@ def test_suggested_base_path_with_json_data(tmp_path: Path, webtoon_instance: We
     suggested_path = "suggested_dir"
     # JsonData 형식으로 저장
     json_data = JsonData(data=suggested_path, conversion="json")
-    webtoon_instance.info["sys_base_directory"] = json_data
+    webtoon_instance.info.set("sys_base_directory", json_data, system=True)
 
     result = webtoon_instance.path.suggested_base_path()
     assert result == Path(suggested_path)
@@ -259,7 +259,7 @@ def test_suggested_base_path_with_json_data(tmp_path: Path, webtoon_instance: We
 def test_suggested_base_path_with_invalid_type(webtoon_instance: Webtoon):
     """sys_base_directory가 유효하지 않은 타입일 때 None 반환"""
     # int 같은 잘못된 타입 저장
-    webtoon_instance.info["sys_base_directory"] = 12345
+    webtoon_instance.info.set("sys_base_directory", 12345, system=True)
 
     result = webtoon_instance.path.suggested_base_path()
     assert result is None
@@ -268,7 +268,7 @@ def test_suggested_base_path_with_invalid_type(webtoon_instance: Webtoon):
 def test_suggested_base_path_with_bytes(webtoon_instance: Webtoon):
     """sys_base_directory가 bytes일 때 Path로 변환"""
     suggested_bytes = b"suggested_dir"
-    webtoon_instance.info["sys_base_directory"] = suggested_bytes
+    webtoon_instance.info.set("sys_base_directory", suggested_bytes, system=True)
 
     result = webtoon_instance.path.suggested_base_path()
     assert result == Path("suggested_dir")
@@ -381,7 +381,7 @@ def test_get_base_path_with_absolute_suggested_path_fallback_enabled(tmp_path: P
 
     with Webtoon(db_path) as webtoon:
         # 절대 경로를 sys_base_directory에 저장
-        webtoon.info["sys_base_directory"] = str(tmp_path / "absolute_path")
+        webtoon.info.set("sys_base_directory", str(tmp_path / "absolute_path"), system=True)
         webtoon.path.fallback_base_path = True
 
         # initialize_base_path 호출 시 fallback되어야 함
@@ -395,7 +395,7 @@ def test_get_base_path_with_absolute_suggested_path_fallback_disabled(tmp_path: 
 
     with Webtoon(db_path) as webtoon:
         # 절대 경로를 sys_base_directory에 저장
-        webtoon.info["sys_base_directory"] = str(tmp_path / "absolute_path")
+        webtoon.info.set("sys_base_directory", str(tmp_path / "absolute_path"), system=True)
         webtoon.path.fallback_base_path = False
 
         # 에러가 발생해야 함
@@ -410,7 +410,7 @@ def test_get_base_path_with_non_child_suggested_path_fallback_enabled(tmp_path: 
 
     with Webtoon(db_path) as webtoon:
         # 부모 폴더가 아닌 다른 경로를 suggested로 설정 (상대 경로)
-        webtoon.info["sys_base_directory"] = "../../outside"
+        webtoon.info.set("sys_base_directory", "../../outside", system=True)
         webtoon.path.fallback_base_path = True
 
         # fallback되어 file_base_path 사용
@@ -425,7 +425,7 @@ def test_get_base_path_with_non_child_suggested_path_fallback_disabled(tmp_path:
 
     with Webtoon(db_path) as webtoon:
         # 부모 폴더가 아닌 다른 경로를 suggested로 설정
-        webtoon.info["sys_base_directory"] = "../../outside"
+        webtoon.info.set("sys_base_directory", "../../outside", system=True)
         webtoon.path.fallback_base_path = False
 
         # 에러가 발생해야 함
@@ -441,7 +441,7 @@ def test_get_base_path_with_valid_suggested_path(tmp_path: Path):
         # 유효한 상대 경로 - 하지만 실제로는 cwd 기준이므로 file_folder 밖에 있을 수 있음
         # 그런 경우 fallback됨
         suggested = "media"
-        webtoon.info["sys_base_directory"] = suggested
+        webtoon.info.set("sys_base_directory", suggested, system=True)
 
         base = webtoon.path.initialize_base_path()
         # 상대 경로가 file_folder 외부면 fallback되어 db_path.parent가 됨
@@ -464,7 +464,7 @@ def test_get_base_path_with_valid_child_path(tmp_path: Path):
             os.chdir(tmp_path)
             # 이제 "subdir/media"는 tmp_path 기준 상대 경로
             suggested = "subdir/media"
-            webtoon.info["sys_base_directory"] = suggested
+            webtoon.info.set("sys_base_directory", suggested, system=True)
 
             base = webtoon.path.initialize_base_path()
             # 정상적으로 설정되어야 함
@@ -479,7 +479,7 @@ def test_get_base_path_with_none_suggested_uses_file_base_path(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # sys_base_directory를 None으로 설정
-        webtoon.info["sys_base_directory"] = None
+        webtoon.info.set("sys_base_directory", None, system=True)
 
         base = webtoon.path.initialize_base_path()
         assert base == db_path.parent
@@ -509,26 +509,25 @@ def test_media_path_storage_with_custom_base_path(tmp_path: Path):
         webtoon.path.base_path = base_dir
 
         # 에피소드 추가
-        episode = webtoon.episode.add(id=1, name="Test Episode")
+        episode = webtoon.episode.add(1)
 
         # 미디어 파일 생성
         media_file = base_dir / "images" / "001.jpg"
         media_file.parent.mkdir(parents=True, exist_ok=True)
         media_file.write_bytes(b"fake image data")
 
-        # 미디어 경로로 추가
-        webtoon.media.add(media_file, episode=episode, media_no=1, purpose="image")
+        # 미디어 경로로 추가 - 파일 경로를 path 파라미터로 전달해야 함
+        # add_path_or_data 메서드 사용
+        webtoon.content.add_path_or_data(episode, 1, "image", data=b"fake image data", path=media_file)
 
     # 데이터베이스를 닫았다가 다시 열어서 확인
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = base_dir
 
         # episode 다시 로드
-        with webtoon.connection.cursor() as cur:
-            episode_no = cur.execute("SELECT episode_no FROM episodes WHERE id=?", (1,)).fetchone()[0]
         from wbtn._managers._episode import WebtoonEpisode
-        episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
-        media_list = list(webtoon.media.iterate(episode=episode))
+        episode = WebtoonEpisode.from_episode_no(1, webtoon)
+        media_list = list(webtoon.content.iterate(episode=episode))
 
         assert len(media_list) == 1
         media = media_list[0].load()
@@ -537,7 +536,7 @@ def test_media_path_storage_with_custom_base_path(tmp_path: Path):
         assert media.path == media_file
         # DB에는 상대 경로로 저장되어야 함
         with webtoon.connection.cursor() as cur:
-            stored_path = cur.execute("SELECT path FROM media WHERE id=?", (media.media_id,)).fetchone()[0]
+            stored_path = cur.execute("SELECT path FROM Content WHERE content_id=?", (media.content_id,)).fetchone()[0]
             assert stored_path == "images/001.jpg"
 
 
@@ -553,39 +552,35 @@ def test_media_path_storage_with_changed_base_path(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = old_base
 
-        episode = webtoon.episode.add(id=1, name="Test")
+        episode = webtoon.episode.add(1)
         media_file = old_base / "image.jpg"
         media_file.write_bytes(b"data")
 
-        webtoon.media.add(media_file, episode=episode, media_no=1, purpose="image")
+        webtoon.content.add_path_or_data(episode, 1, "image", data=b"data", path=media_file)
 
     # 새로운 base_path로 미디어 추가
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = new_base
 
         # episode 로드
-        with webtoon.connection.cursor() as cur:
-            episode_no = cur.execute("SELECT episode_no FROM episodes WHERE id=?", (1,)).fetchone()[0]
         from wbtn._managers._episode import WebtoonEpisode
-        episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
+        episode = WebtoonEpisode.from_episode_no(1, webtoon)
         new_media_file = new_base / "new_image.jpg"
         new_media_file.write_bytes(b"new data")
 
-        webtoon.media.add(new_media_file, episode=episode, media_no=2, purpose="image")
+        webtoon.content.add_path_or_data(episode, 2, "image", data=b"new data", path=new_media_file)
 
     # 각 base_path로 열어서 확인
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = old_base
 
         # episode 로드
-        with webtoon.connection.cursor() as cur:
-            episode_no = cur.execute("SELECT episode_no FROM episodes WHERE id=?", (1,)).fetchone()[0]
         from wbtn._managers._episode import WebtoonEpisode
-        episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
+        episode = WebtoonEpisode.from_episode_no(1, webtoon)
 
         # old_base 기준으로 첫 번째 미디어 로드
-        media_list = list(webtoon.media.iterate(episode=episode))
-        first_media = [m for m in media_list if m.load().media_no == 1][0].load()
+        media_list = list(webtoon.content.iterate(episode=episode))
+        first_media = [m for m in media_list if m.load().content_no == 1][0].load()
         assert first_media.path == old_base / "image.jpg"
 
 
@@ -611,7 +606,7 @@ def test_extra_file_path_storage_with_custom_base_path(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = base_dir
 
-        files = list(webtoon.extra_file.iterate(purpose="metadata"))
+        files = list(webtoon.extra_file.iterate(kind="metadata"))
         assert len(files) == 1
 
         file_data = files[0]
@@ -619,7 +614,7 @@ def test_extra_file_path_storage_with_custom_base_path(tmp_path: Path):
 
         # DB에는 상대 경로로 저장되어야 함
         with webtoon.connection.cursor() as cur:
-            stored_path = cur.execute("SELECT path FROM extra_files WHERE id=?", (file_data.id,)).fetchone()[0]
+            stored_path = cur.execute("SELECT path FROM ExtraFile WHERE file_id=?", (file_data.file_id,)).fetchone()[0]
             assert stored_path == "extra/metadata.json"
 
 
@@ -632,19 +627,18 @@ def test_media_data_storage_without_path(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         webtoon.path.base_path = base_dir
 
-        episode = webtoon.episode.add(id=1, name="Test")
+        episode = webtoon.episode.add(1)
 
         # data로 저장 (path 없음)
-        webtoon.media.add(b"image data", episode=episode, media_no=1, purpose="image")
+        webtoon.content.add(episode, 1, "image", data=b"image data")
 
     # 다시 열어서 확인
     with Webtoon(db_path) as webtoon:
         # episode 로드
-        with webtoon.connection.cursor() as cur:
-            episode_no = cur.execute("SELECT episode_no FROM episodes WHERE id=?", (1,)).fetchone()[0]
+        episode_no = 1
         from wbtn._managers._episode import WebtoonEpisode
         episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
-        media_list = list(webtoon.media.iterate(episode=episode))
+        media_list = list(webtoon.content.iterate(episode=episode))
 
         assert len(media_list) == 1
         media = media_list[0].load()
@@ -677,25 +671,24 @@ def test_path_resolution_with_symlinks(tmp_path: Path):
             # 심볼릭 링크를 base_path로 설정
             webtoon.path.base_path = symlink_base
 
-            episode = webtoon.episode.add(id=1, name="Test")
+            episode = webtoon.episode.add(1)
 
             # 실제 경로에 파일 생성
             media_file = real_base / "image.jpg"
             media_file.write_bytes(b"data")
 
             # 미디어 추가
-            webtoon.media.add(media_file, episode=episode, media_no=1, purpose="image")
+            webtoon.content.add_path_or_data(episode, 1, "image", data=b"data", path=media_file)
 
         # 다시 열어서 경로 확인
         with Webtoon(db_path) as webtoon:
             webtoon.path.base_path = symlink_base
 
             # episode 로드
-            with webtoon.connection.cursor() as cur:
-                episode_no = cur.execute("SELECT episode_no FROM episodes WHERE id=?", (1,)).fetchone()[0]
+            episode_no = 1
             from wbtn._managers._episode import WebtoonEpisode
             episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
-            media_list = list(webtoon.media.iterate(episode=episode))
+            media_list = list(webtoon.content.iterate(episode=episode))
 
             media = media_list[0].load()
             # resolve된 경로여야 함

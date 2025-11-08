@@ -22,44 +22,44 @@ def test_extra_file_basic_operations(tmp_path: Path):
         assert len(webtoon.extra_file) == 0
 
         # add an extra file with data
-        ef = webtoon.extra_file.add_data(tmp_path / "notes.txt", data=b"hello", purpose="notes")
+        ef = webtoon.extra_file.add_value(tmp_path / "notes.txt", value=b"hello", purpose="notes")
         assert len(webtoon.extra_file) == 1
         assert isinstance(ef, ExtraFile)
-        assert ef.purpose == "notes"
+        assert ef.kind == "notes"
         assert ef.path == tmp_path / "notes.txt"
-        assert ef.data == b"hello"
+        assert ef.value == b"hello"
         assert ef.conversion == "bytes"  # primitive_conversion=True로 자동 감지됨
         assert isinstance(ef.added_at, datetime.datetime)
 
         # iterate to get the ExtraFile
         files = list(webtoon.extra_file.iterate())
         assert len(files) == 1
-        assert files[0].id == ef.id
+        assert files[0].file_id == ef.file_id
 
         # get by id using from_id
-        ef_by_id = ExtraFile.from_id(ef.id, webtoon)
-        assert ef_by_id.id == ef.id
-        assert ef_by_id.data == b"hello"
+        ef_by_id = ExtraFile.from_id(ef.file_id, webtoon)
+        assert ef_by_id.file_id == ef.file_id
+        assert ef_by_id.value == b"hello"
 
         # update fields and set
         new_time = datetime.datetime.now()
-        ef.purpose = "updated"
+        ef.kind = "updated"
         ef.path = tmp_path / "updated.txt"
-        ef.data = b"world"
+        ef.value = b"world"
         ef.added_at = new_time
         webtoon.extra_file.set(ef)
 
-        ef2 = ExtraFile.from_id(ef.id, webtoon)
-        assert ef2.purpose == "updated"
+        ef2 = ExtraFile.from_id(ef.file_id, webtoon)
+        assert ef2.kind == "updated"
         assert ef2.path == tmp_path / "updated.txt"
-        assert ef2.data == b"world"
+        assert ef2.value == b"world"
 
         # remove
         webtoon.extra_file.remove(ef)
         assert len(webtoon.extra_file) == 0
 
         with pytest.raises(KeyError):
-            ExtraFile.from_id(ef.id, webtoon)
+            ExtraFile.from_id(ef.file_id, webtoon)
 
 
 def test_extra_file_add_path_only(tmp_path: Path):
@@ -77,9 +77,9 @@ def test_extra_file_add_path_only(tmp_path: Path):
 
         assert isinstance(ef, ExtraFile)
         assert ef.path == extra_file_path
-        assert ef.data is None  # add_path는 data=None을 저장
+        assert ef.value is None  # add_path는 data=None을 저장
         assert ef.conversion == "str"
-        assert ef.purpose == "metadata"
+        assert ef.kind == "metadata"
 
 
 def test_extra_file_add_data_with_different_types(tmp_path: Path):
@@ -88,25 +88,25 @@ def test_extra_file_add_data_with_different_types(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # bytes - primitive_conversion=True로 자동 감지됨
-        ef1 = webtoon.extra_file.add_data(tmp_path / "file1.bin", data=b"\x00\x01\x02", purpose="binary")
+        ef1 = webtoon.extra_file.add_value(tmp_path / "file1.bin", value=b"\x00\x01\x02", purpose="binary")
         assert ef1.conversion == "bytes"
-        assert ef1.data == b"\x00\x01\x02"
+        assert ef1.value == b"\x00\x01\x02"
 
         # str - primitive_conversion=True로 자동 감지됨
-        ef2 = webtoon.extra_file.add_data(tmp_path / "file2.txt", data="Hello, World!", purpose="text")
+        ef2 = webtoon.extra_file.add_value(tmp_path / "file2.txt", value="Hello, World!", purpose="text")
         assert ef2.conversion == "str"
-        assert ef2.data == "Hello, World!"
+        assert ef2.value == "Hello, World!"
 
         # int - primitive_conversion=True로 자동 감지됨
-        ef3 = webtoon.extra_file.add_data(tmp_path / "file3.dat", data=42, purpose="number")
+        ef3 = webtoon.extra_file.add_value(tmp_path / "file3.dat", value=42, purpose="number")
         assert ef3.conversion == "int"
-        assert ef3.data == 42
+        assert ef3.value == 42
 
         # json
         json_data = JsonData(data={"key": "value"})
-        ef4 = webtoon.extra_file.add_data(tmp_path / "file4.json", data=json_data, purpose="json")
+        ef4 = webtoon.extra_file.add_value(tmp_path / "file4.json", value=json_data, purpose="json")
         assert ef4.conversion == "json"
-        assert isinstance(ef4.data, JsonData)
+        assert isinstance(ef4.value, JsonData)
 
         # 모든 파일 확인
         files = list(webtoon.extra_file.iterate())
@@ -127,11 +127,11 @@ def test_extra_file_iterate_with_purpose(tmp_path: Path):
 
         p1_files = list(webtoon.extra_file.iterate("p1"))
         assert len(p1_files) == 2
-        assert all(f.purpose == "p1" for f in p1_files)
+        assert all(f.kind == "p1" for f in p1_files)
 
         p2_files = list(webtoon.extra_file.iterate("p2"))
         assert len(p2_files) == 1
-        assert p2_files[0].purpose == "p2"
+        assert p2_files[0].kind == "p2"
 
 
 def test_extra_file_iterate_without_filter(tmp_path: Path):
@@ -139,15 +139,15 @@ def test_extra_file_iterate_without_filter(tmp_path: Path):
     db_path = tmp_path / "all_files.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.extra_file.add_data(tmp_path / "1.txt", data=b"1", purpose="a")
-        webtoon.extra_file.add_data(tmp_path / "2.txt", data=b"2", purpose="b")
-        webtoon.extra_file.add_data(tmp_path / "3.txt", data=b"3", purpose=None)
+        webtoon.extra_file.add_value(tmp_path / "1.txt", value=b"1", purpose="a")
+        webtoon.extra_file.add_value(tmp_path / "2.txt", value=b"2", purpose="b")
+        webtoon.extra_file.add_value(tmp_path / "3.txt", value=b"3", purpose=None)
 
         # iterate() 파라미터 없이 호출
         all_files = list(webtoon.extra_file.iterate())
         assert len(all_files) == 3
 
-        purposes = {f.purpose for f in all_files}
+        purposes = {f.kind for f in all_files}
         assert purposes == {"a", "b", None}
 
 
@@ -156,15 +156,15 @@ def test_extra_file_iterate_with_none_purpose(tmp_path: Path):
     db_path = tmp_path / "none_purpose.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.extra_file.add_data(tmp_path / "1.txt", data=b"1", purpose="labeled")
-        webtoon.extra_file.add_data(tmp_path / "2.txt", data=b"2", purpose=None)
-        webtoon.extra_file.add_data(tmp_path / "3.txt", data=b"3", purpose=None)
+        webtoon.extra_file.add_value(tmp_path / "1.txt", value=b"1", purpose="labeled")
+        webtoon.extra_file.add_value(tmp_path / "2.txt", value=b"2", purpose=None)
+        webtoon.extra_file.add_value(tmp_path / "3.txt", value=b"3", purpose=None)
 
         # purpose IS NULL 쿼리가 추가되어 제대로 작동함
         none_files = list(webtoon.extra_file.iterate(None))
         assert len(none_files) == 2
         for ef in none_files:
-            assert ef.purpose is None
+            assert ef.kind is None
 
 
 def test_extra_file_set_missing_raises(tmp_path):
@@ -173,11 +173,11 @@ def test_extra_file_set_missing_raises(tmp_path):
     with Webtoon(path) as webtoon:
         # build a fake ExtraFile
         fake = ExtraFile(
-            id=9999,
-            purpose="x",
+            file_id=9999,
+            kind="x",
             conversion="str",
             path=tmp_path / "x",
-            data=None,
+            value=None,
             added_at=datetime.datetime.now()
         )
         with pytest.raises(KeyError):
@@ -189,11 +189,11 @@ def test_extra_file_remove_missing_raises(tmp_path):
     path = tmp_path / "extra_remove.wbtn"
     with Webtoon(path) as webtoon:
         fake = ExtraFile(
-            id=9999,
-            purpose="x",
+            file_id=9999,
+            kind="x",
             conversion="str",
             path=tmp_path / "x",
-            data=None,
+            value=None,
             added_at=datetime.datetime.now()
         )
         with pytest.raises(KeyError):
@@ -205,7 +205,7 @@ def test_extra_file_remove_by_object(tmp_path: Path):
     db_path = tmp_path / "remove_obj.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        ef = webtoon.extra_file.add_data(tmp_path / "file.txt", data=b"data", purpose="test")
+        ef = webtoon.extra_file.add_value(tmp_path / "file.txt", value=b"data", purpose="test")
 
         assert len(webtoon.extra_file) == 1
 
@@ -219,24 +219,24 @@ def test_extra_file_update_all_fields(tmp_path: Path):
     db_path = tmp_path / "update_all.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        ef = webtoon.extra_file.add_data(tmp_path / "original.txt", data=b"old", purpose="original")
-        original_id = ef.id
+        ef = webtoon.extra_file.add_value(tmp_path / "original.txt", value=b"old", purpose="original")
+        original_id = ef.file_id
 
         # 모든 필드 변경 - set()은 raw data를 그대로 저장
-        ef.purpose = "modified"
+        ef.kind = "modified"
         ef.conversion = "str"
         ef.path = tmp_path / "modified.txt"
-        ef.data = "new text"
+        ef.value = "new text"
         ef.added_at = datetime.datetime(2020, 1, 1, 12, 0, 0)
 
         webtoon.extra_file.set(ef)
 
         # 확인 - set()이 raw data를 저장하므로 conversion과 관계없이 저장됨
         updated = ExtraFile.from_id(original_id, webtoon)
-        assert updated.purpose == "modified"
+        assert updated.kind == "modified"
         assert updated.conversion == "str"
         assert updated.path == tmp_path / "modified.txt"
-        assert updated.data == "new text"  # load_value로 로드됨
+        assert updated.value == "new text"  # load_value로 로드됨
         assert updated.added_at == datetime.datetime(2020, 1, 1, 12, 0, 0)
 
 
@@ -245,9 +245,9 @@ def test_extra_file_iterator_protocol(tmp_path: Path):
     db_path = tmp_path / "iterator.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        webtoon.extra_file.add_data(tmp_path / "1.txt", data=b"1")
-        webtoon.extra_file.add_data(tmp_path / "2.txt", data=b"2")
-        webtoon.extra_file.add_data(tmp_path / "3.txt", data=b"3")
+        webtoon.extra_file.add_value(tmp_path / "1.txt", value=b"1")
+        webtoon.extra_file.add_value(tmp_path / "2.txt", value=b"2")
+        webtoon.extra_file.add_value(tmp_path / "3.txt", value=b"3")
 
         # for 루프로 직접 iterate
         count = 0
@@ -264,7 +264,7 @@ def test_extra_file_added_at_timestamp(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         before = datetime.datetime.now()
-        ef = webtoon.extra_file.add_data(tmp_path / "file.txt", data=b"data")
+        ef = webtoon.extra_file.add_value(tmp_path / "file.txt", value=b"data")
         after = datetime.datetime.now()
 
         # added_at이 추가 시점의 시간이어야 함
@@ -285,7 +285,7 @@ def test_extra_file_with_custom_base_path(tmp_path: Path):
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_bytes(b"content")
 
-        ef = webtoon.extra_file.add_data(file_path, data=b"data", purpose="test")
+        ef = webtoon.extra_file.add_value(file_path, value=b"data", purpose="test")
 
     # 다시 열어서 확인
     with Webtoon(db_path) as webtoon:
@@ -297,7 +297,7 @@ def test_extra_file_with_custom_base_path(tmp_path: Path):
 
         # DB에는 상대 경로로 저장되어야 함
         with webtoon.connection.cursor() as cur:
-            stored_path = cur.execute("SELECT path FROM extra_files WHERE id=?", (files[0].id,)).fetchone()[0]
+            stored_path = cur.execute("SELECT path FROM ExtraFile WHERE file_id=?", (files[0].file_id,)).fetchone()[0]
             assert stored_path == "subdir/file.txt"
 
 
@@ -315,13 +315,13 @@ def test_extra_file_add_data_returns_populated_object(tmp_path: Path):
     db_path = tmp_path / "return_obj.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        ef = webtoon.extra_file.add_data(tmp_path / "test.txt", data="test data", purpose="test")
+        ef = webtoon.extra_file.add_value(tmp_path / "test.txt", value="test data", purpose="test")
 
-        assert ef.id > 0
-        assert ef.purpose == "test"
+        assert ef.file_id > 0
+        assert ef.kind == "test"
         assert ef.conversion == "str"  # primitive_conversion=True로 자동 감지됨
         assert ef.path == tmp_path / "test.txt"
-        assert ef.data == "test data"
+        assert ef.value == "test data"
         assert isinstance(ef.added_at, datetime.datetime)
 
 
@@ -332,11 +332,11 @@ def test_extra_file_add_path_returns_populated_object(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         ef = webtoon.extra_file.add_path(tmp_path / "test.txt", conversion="bytes", purpose="test")
 
-        assert ef.id > 0
-        assert ef.purpose == "test"
+        assert ef.file_id > 0
+        assert ef.kind == "test"
         assert ef.conversion == "bytes"
         assert ef.path == tmp_path / "test.txt"
-        assert ef.data is None  # add_path는 data=None을 저장
+        assert ef.value is None  # add_path는 data=None을 저장
         assert isinstance(ef.added_at, datetime.datetime)
 
 
@@ -346,14 +346,14 @@ def test_extra_file_multiple_operations(tmp_path: Path):
 
     with Webtoon(db_path) as webtoon:
         # 여러 파일 추가
-        ef1 = webtoon.extra_file.add_data(tmp_path / "1.txt", data=b"one")
-        ef2 = webtoon.extra_file.add_data(tmp_path / "2.txt", data=b"two")
+        ef1 = webtoon.extra_file.add_value(tmp_path / "1.txt", value=b"one")
+        ef2 = webtoon.extra_file.add_value(tmp_path / "2.txt", value=b"two")
         ef3 = webtoon.extra_file.add_path(tmp_path / "3.txt", conversion="str")
 
         assert len(webtoon.extra_file) == 3
 
         # 하나 수정
-        ef2.data = b"modified"
+        ef2.value = b"modified"
         webtoon.extra_file.set(ef2)
 
         # 하나 삭제
@@ -363,12 +363,12 @@ def test_extra_file_multiple_operations(tmp_path: Path):
 
         # 남은 파일 확인
         remaining = list(webtoon.extra_file.iterate())
-        remaining_ids = {f.id for f in remaining}
-        assert remaining_ids == {ef2.id, ef3.id}
+        remaining_ids = {f.file_id for f in remaining}
+        assert remaining_ids == {ef2.file_id, ef3.file_id}
 
         # 수정된 내용 확인
-        ef2_reloaded = ExtraFile.from_id(ef2.id, webtoon)
-        assert ef2_reloaded.data == b"modified"
+        ef2_reloaded = ExtraFile.from_id(ef2.file_id, webtoon)
+        assert ef2_reloaded.value == b"modified"
 
 
 def test_extra_file_with_json_data(tmp_path: Path):
@@ -379,15 +379,15 @@ def test_extra_file_with_json_data(tmp_path: Path):
         json_obj = {"name": "test", "value": 123, "nested": {"key": "value"}}
         json_data = JsonData(data=json_obj)
 
-        ef = webtoon.extra_file.add_data(tmp_path / "config.json", data=json_data, purpose="config")
+        ef = webtoon.extra_file.add_value(tmp_path / "config.json", value=json_data, purpose="config")
 
         assert ef.conversion == "json"  # JsonData는 항상 json conversion으로 감지됨
-        assert isinstance(ef.data, JsonData)
+        assert isinstance(ef.value, JsonData)
 
         # 다시 로드
-        ef_reloaded = ExtraFile.from_id(ef.id, webtoon)
-        assert isinstance(ef_reloaded.data, JsonData)
-        assert ef_reloaded.data.load() == json_obj
+        ef_reloaded = ExtraFile.from_id(ef.file_id, webtoon)
+        assert isinstance(ef_reloaded.value, JsonData)
+        assert ef_reloaded.value.load() == json_obj
 
 
 def test_extra_file_purpose_can_be_none(tmp_path: Path):
@@ -395,10 +395,9 @@ def test_extra_file_purpose_can_be_none(tmp_path: Path):
     db_path = tmp_path / "no_purpose.wbtn"
 
     with Webtoon(db_path) as webtoon:
-        ef = webtoon.extra_file.add_data(tmp_path / "file.txt", data=b"data", purpose=None)
+        ef = webtoon.extra_file.add_value(tmp_path / "file.txt", value=b"data", purpose=None)
 
-        assert ef.purpose is None
+        assert ef.kind is None
 
-        ef_reloaded = ExtraFile.from_id(ef.id, webtoon)
-        assert ef_reloaded.purpose is None
-
+        ef_reloaded = ExtraFile.from_id(ef.file_id, webtoon)
+        assert ef_reloaded.kind is None

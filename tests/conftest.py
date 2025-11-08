@@ -83,10 +83,9 @@ def create_populated_webtoon(path: Path) -> Webtoon:
 
     # 에피소드 추가
     for i in range(1, 4):
-        webtoon.episode.add(
-            id=1000 + i,
-            name=f"Episode {i}",
-            state="complete"
-        )
+        episode = webtoon.episode.add(episode_no=1000 + i)
+        episode["id"] = 1000 + i
+        episode["name"] = f"Episode {i}"
+        episode["state"] = "complete"
 
     return webtoon

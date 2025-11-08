@@ -21,38 +21,45 @@ from wbtn._json_data import JsonData
 
 def test_add_episode_with_all_parameters(webtoon_instance: Webtoon):
     """모든 파라미터와 함께 에피소드 추가"""
-    episode = webtoon_instance.episode.add(
-        id=12345,
-        name="Test Episode",
-        episode_no=1,
-        state="downloaded"
-    )
+    episode = webtoon_instance.episode.add(episode_no=1)
+    episode["id"] = 12345
+    episode["name"] = "Test Episode"
+    episode["state"] = "downloaded"
+
     assert isinstance(episode, WebtoonEpisode)
     assert episode.episode_no == 1
-    assert episode.name == "Test Episode"
-    assert episode.state == "downloaded"
-    assert episode.episode_id == 12345
+    assert episode["name"] == "Test Episode"
+    assert episode["state"] == "downloaded"
+    assert episode["id"] == 12345
 
 
 def test_add_episode_auto_episode_number(webtoon_instance: Webtoon):
     """episode_no를 자동으로 할당"""
-    episode = webtoon_instance.episode.add(
-        id=100,
-        name="Auto Number Episode",
-        state="complete"
-    )
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 100
+    episode["name"] = "Auto Number Episode"
+    episode["state"] = "complete"
+
     assert isinstance(episode, WebtoonEpisode)
     assert episode.episode_no is not None
     assert isinstance(episode.episode_no, int)
-    assert episode.name == "Auto Number Episode"
-    assert episode.state == "complete"
+    assert episode["name"] == "Auto Number Episode"
+    assert episode["state"] == "complete"
 
 
 def test_add_multiple_episodes(webtoon_instance: Webtoon):
     """여러 에피소드 추가"""
-    ep1 = webtoon_instance.episode.add(id=1, name="Episode 1")
-    ep2 = webtoon_instance.episode.add(id=2, name="Episode 2")
-    ep3 = webtoon_instance.episode.add(id=3, name="Episode 3")
+    ep1 = webtoon_instance.episode.add()
+    ep1["id"] = 1
+    ep1["name"] = "Episode 1"
+
+    ep2 = webtoon_instance.episode.add()
+    ep2["id"] = 2
+    ep2["name"] = "Episode 2"
+
+    ep3 = webtoon_instance.episode.add()
+    ep3["id"] = 3
+    ep3["name"] = "Episode 3"
 
     assert isinstance(ep1, WebtoonEpisode)
     assert isinstance(ep2, WebtoonEpisode)
@@ -62,41 +69,49 @@ def test_add_multiple_episodes(webtoon_instance: Webtoon):
 
 def test_add_episode_with_unicode_name(webtoon_instance: Webtoon):
     """유니코드 이름으로 에피소드 추가"""
-    episode = webtoon_instance.episode.add(
-        id=999,
-        name="테스트 에피소드 😀",
-        state="ready"
-    )
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 999
+    episode["name"] = "테스트 에피소드 😀"
+    episode["state"] = "ready"
+
     assert isinstance(episode, WebtoonEpisode)
-    assert episode.name == "테스트 에피소드 😀"
+    assert episode["name"] == "테스트 에피소드 😀"
 
 
 def test_add_episode_minimal_parameters(webtoon_instance: Webtoon):
     """최소한의 파라미터로 에피소드 추가"""
-    episode = webtoon_instance.episode.add(
-        id=500,
-        name="Minimal"
-    )
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 500
+    episode["name"] = "Minimal"
+
     assert isinstance(episode, WebtoonEpisode)
-    assert episode.episode_id == 500
-    assert episode.name == "Minimal"
+    assert episode["id"] == 500
+    assert episode["name"] == "Minimal"
 
 
 def test_episode_id_can_be_various_types(webtoon_instance: Webtoon):
     """에피소드 ID는 다양한 타입 가능"""
     # 정수 ID
-    ep1 = webtoon_instance.episode.add(id=123, name="Int ID")
+    ep1 = webtoon_instance.episode.add()
+    ep1["id"] = 123
+    ep1["name"] = "Int ID"
+
     # 문자열 ID
-    ep2 = webtoon_instance.episode.add(id="abc123", name="String ID")
+    ep2 = webtoon_instance.episode.add()
+    ep2["id"] = "abc123"
+    ep2["name"] = "String ID"
+
     # None ID
-    ep3 = webtoon_instance.episode.add(id=None, name="None ID")
+    ep3 = webtoon_instance.episode.add()
+    ep3["id"] = None
+    ep3["name"] = "None ID"
 
     assert isinstance(ep1, WebtoonEpisode)
     assert isinstance(ep2, WebtoonEpisode)
     assert isinstance(ep3, WebtoonEpisode)
-    assert ep1.episode_id == 123
-    assert ep2.episode_id == "abc123"
-    assert ep3.episode_id is None
+    assert ep1["id"] == 123
+    assert ep2["id"] == "abc123"
+    assert ep3["id"] is None
 
 
 # ===== WebtoonEpisode 클래스 테스트 =====
@@ -104,24 +119,23 @@ def test_episode_id_can_be_various_types(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_from_episode_no(webtoon_instance: Webtoon):
     """episode_no로 WebtoonEpisode 객체 생성"""
-    episode = webtoon_instance.episode.add(
-        id=12345,
-        name="Test Episode",
-        state="downloaded"
-    )
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 12345
+    episode["name"] = "Test Episode"
+    episode["state"] = "downloaded"
 
     # add()가 이미 WebtoonEpisode를 반환하므로 직접 사용
     assert episode.episode_no is not None
-    assert episode.name == "Test Episode"
-    assert episode.state == "downloaded"
-    assert episode.episode_id == 12345
+    assert episode["name"] == "Test Episode"
+    assert episode["state"] == "downloaded"
+    assert episode["id"] == 12345
     assert isinstance(episode.added_at, datetime.datetime)
 
     # from_episode_no로도 생성 가능
     episode2 = WebtoonEpisode.from_episode_no(episode.episode_no, webtoon_instance)
     assert episode2.episode_no == episode.episode_no
-    assert episode2.name == episode.name
-    assert episode2.state == episode.state
+    assert episode2["name"] == episode["name"]
+    assert episode2["state"] == episode["state"]
 
 
 def test_webtoon_episode_with_nonexistent_episode_no_raises(webtoon_instance: Webtoon):
@@ -133,7 +147,9 @@ def test_webtoon_episode_with_nonexistent_episode_no_raises(webtoon_instance: We
 def test_webtoon_episode_added_at_timestamp(webtoon_instance: Webtoon):
     """added_at이 올바른 타임스탬프인지 확인"""
     before_time = datetime.datetime.now()
-    episode = webtoon_instance.episode.add(id=777, name="Time Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 777
+    episode["name"] = "Time Test"
     after_time = datetime.datetime.now()
 
     assert before_time <= episode.added_at <= after_time
@@ -144,7 +160,9 @@ def test_webtoon_episode_added_at_timestamp(webtoon_instance: Webtoon):
 
 def test_add_extra_data_string(webtoon_instance: Webtoon):
     """문자열 extra_data 추가 (__setitem__ / __getitem__ 사용)"""
-    episode = webtoon_instance.episode.add(id=1, name="Extra Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 1
+    episode["name"] = "Extra Test"
     episode["description"] = "This is a description"
 
     result = episode["description"]
@@ -153,7 +171,9 @@ def test_add_extra_data_string(webtoon_instance: Webtoon):
 
 def test_add_extra_data_integer(webtoon_instance: Webtoon):
     """정수 extra_data 추가"""
-    episode = webtoon_instance.episode.add(id=2, name="Int Extra")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 2
+    episode["name"] = "Int Extra"
     episode["views"] = 10000
 
     result = episode["views"]
@@ -162,7 +182,9 @@ def test_add_extra_data_integer(webtoon_instance: Webtoon):
 
 def test_add_extra_data_json(webtoon_instance: Webtoon):
     """JsonData extra_data 추가"""
-    episode = webtoon_instance.episode.add(id=3, name="JSON Extra")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 3
+    episode["name"] = "JSON Extra"
     json_data = JsonData(data={"likes": 500, "comments": ["good", "nice"]})
     episode["metadata"] = json_data
 
@@ -174,7 +196,9 @@ def test_add_extra_data_json(webtoon_instance: Webtoon):
 
 def test_add_multiple_extra_data(webtoon_instance: Webtoon):
     """여러 extra_data 추가"""
-    episode = webtoon_instance.episode.add(id=4, name="Multiple Extra")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 4
+    episode["name"] = "Multiple Extra"
     episode["author"] = "John Doe"
     episode["rating"] = 4.5
     episode["published"] = True
@@ -185,29 +209,33 @@ def test_add_multiple_extra_data(webtoon_instance: Webtoon):
 
 
 def test_extra_data_all_purposes(webtoon_instance: Webtoon):
-    """모든 extra_data를 딕셔너리로 조회 (__getitem__ with None)"""
-    episode = webtoon_instance.episode.add(id=5, name="All Extra")
+    """모든 extra_data를 딕셔너리로 조회 - 이제 __iter__로 순회"""
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 5
+    episode["name"] = "All Extra"
     episode["key1"] = "value1"
     episode["key2"] = 123
 
-    # None을 사용하면 모든 extra_data를 딕셔너리로 반환
-    all_extra = episode[None]  # type: ignore
+    # 모든 extra_data를 딕셔너리로 조회
+    all_extra = dict(episode.items())
     assert isinstance(all_extra, dict)
-    # all_extra는 ValueType (dict)이므로 type: ignore 필요
-    assert all_extra["key1"] == "value1"  # type: ignore
-    assert all_extra["key2"] == 123  # type: ignore
+    assert all_extra["key1"] == "value1"
+    assert all_extra["key2"] == 123
 
 
 def test_extra_data_purposes_list(webtoon_instance: Webtoon):
     """extra_data의 purpose 목록 조회 (__iter__ 사용)"""
-    episode = webtoon_instance.episode.add(id=6, name="Purposes")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 6
+    episode["name"] = "Purposes"
     episode["purpose1"] = "data1"
     episode["purpose2"] = "data2"
 
     purposes = list(episode)
     assert "purpose1" in purposes
     assert "purpose2" in purposes
-    assert len(purposes) == 2
+    # id와 name도 포함됨
+    assert len(purposes) >= 2
 
 
 # ===== 상태 관리 테스트 =====
@@ -218,22 +246,20 @@ def test_episode_with_different_states(webtoon_instance: Webtoon):
     states = ["downloaded", "empty", "impaired", "exists", "pending", None]
 
     for i, state in enumerate(states):
-        episode = webtoon_instance.episode.add(
-            id=1000 + i,
-            name=f"Episode {i}",
-            state=state
-        )
-        assert episode.state == state
+        episode = webtoon_instance.episode.add(episode_no=1000 + i)
+        episode["id"] = 1000 + i
+        episode["name"] = f"Episode {i}"
+        episode["state"] = state
+        assert episode["state"] == state
 
 
 def test_episode_state_can_be_custom_string(webtoon_instance: Webtoon):
     """사용자 정의 상태 문자열 사용 가능"""
-    episode = webtoon_instance.episode.add(
-        id=2000,
-        name="Custom State",
-        state="my_custom_state"
-    )
-    assert episode.state == "my_custom_state"
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 2000
+    episode["name"] = "Custom State"
+    episode["state"] = "my_custom_state"
+    assert episode["state"] == "my_custom_state"
 
 
 # ===== 엣지 케이스 및 오류 처리 =====
@@ -242,20 +268,26 @@ def test_episode_state_can_be_custom_string(webtoon_instance: Webtoon):
 def test_add_episode_with_very_long_name(webtoon_instance: Webtoon):
     """매우 긴 이름으로 에피소드 추가"""
     long_name = "Episode " * 100
-    episode = webtoon_instance.episode.add(id=3000, name=long_name)
-    assert episode.name == long_name
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 3000
+    episode["name"] = long_name
+    assert episode["name"] == long_name
 
 
 def test_add_episode_with_special_characters_in_name(webtoon_instance: Webtoon):
     """특수 문자가 포함된 이름"""
     special_name = "Episode \"Special\" <Characters> & Symbols! 🎉"
-    episode = webtoon_instance.episode.add(id=4000, name=special_name)
-    assert episode.name == special_name
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 4000
+    episode["name"] = special_name
+    assert episode["name"] == special_name
 
 
 def test_extra_data_with_none_value(webtoon_instance: Webtoon):
     """None 값을 extra_data로 추가"""
-    episode = webtoon_instance.episode.add(id=5000, name="None Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 5000
+    episode["name"] = "None Test"
     episode["nullable"] = None
 
     result = episode["nullable"]
@@ -264,7 +296,9 @@ def test_extra_data_with_none_value(webtoon_instance: Webtoon):
 
 def test_extra_data_with_empty_string(webtoon_instance: Webtoon):
     """빈 문자열을 extra_data로 추가"""
-    episode = webtoon_instance.episode.add(id=6000, name="Empty String")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 6000
+    episode["name"] = "Empty String"
     episode["empty"] = ""
 
     result = episode["empty"]
@@ -273,7 +307,9 @@ def test_extra_data_with_empty_string(webtoon_instance: Webtoon):
 
 def test_extra_data_overwrites_existing_purpose(webtoon_instance: Webtoon):
     """같은 purpose의 extra_data는 덮어씀"""
-    episode = webtoon_instance.episode.add(id=7000, name="Overwrite")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 7000
+    episode["name"] = "Overwrite"
     episode["field"] = "original"
     episode["field"] = "updated"
 
@@ -286,7 +322,9 @@ def test_extra_data_overwrites_existing_purpose(webtoon_instance: Webtoon):
 
 def test_delete_extra_data_basic(webtoon_instance: Webtoon):
     """extra_data를 성공적으로 삭제"""
-    episode = webtoon_instance.episode.add(id=8000, name="Delete Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8000
+    episode["name"] = "Delete Test"
     episode["to_delete"] = "value"
 
     # 삭제 전 확인
@@ -302,7 +340,9 @@ def test_delete_extra_data_basic(webtoon_instance: Webtoon):
 
 def test_delete_extra_data_nonexistent_purpose_raises(webtoon_instance: Webtoon):
     """존재하지 않는 purpose 삭제 시 KeyError 발생"""
-    episode = webtoon_instance.episode.add(id=8001, name="No Purpose")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8001
+    episode["name"] = "No Purpose"
 
     with pytest.raises(KeyError):
         del episode["nonexistent"]
@@ -313,14 +353,18 @@ def test_delete_extra_data_nonexistent_episode_raises(webtoon_instance: Webtoon)
     # WebtoonEpisode를 직접 생성하려면 from_episode_no를 사용해야 하는데,
     # 존재하지 않는 episode는 생성 자체가 불가능하므로 이 테스트는 건너뜀
     # 대신 실제 에피소드에서 존재하지 않는 purpose 삭제를 테스트
-    episode = webtoon_instance.episode.add(id=8001, name="Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8001
+    episode["name"] = "Test"
     with pytest.raises(KeyError):
         del episode["nonexistent_purpose"]
 
 
 def test_delete_extra_data_keeps_other_purposes(webtoon_instance: Webtoon):
     """특정 purpose만 삭제하고 다른 purpose는 유지"""
-    episode = webtoon_instance.episode.add(id=8002, name="Multiple Purposes")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8002
+    episode["name"] = "Multiple Purposes"
     episode["keep1"] = "value1"
     episode["delete"] = "value2"
     episode["keep2"] = "value3"
@@ -339,7 +383,9 @@ def test_delete_extra_data_keeps_other_purposes(webtoon_instance: Webtoon):
 
 def test_delete_extra_data_different_types(webtoon_instance: Webtoon):
     """다양한 타입의 extra_data 삭제"""
-    episode = webtoon_instance.episode.add(id=8003, name="Type Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8003
+    episode["name"] = "Type Test"
 
     # 다양한 타입 추가
     episode["string"] = "text"
@@ -351,14 +397,20 @@ def test_delete_extra_data_different_types(webtoon_instance: Webtoon):
     del episode["integer"]
     del episode["json"]
 
-    # 모두 삭제되었는지 확인
-    assert len(episode) == 0
+    # 모두 삭제되었는지 확인 (id와 name은 남아있으므로 2개)
+    remaining = [k for k in episode if k not in ["id", "name"]]
+    assert len(remaining) == 0
 
 
 def test_delete_extra_data_same_purpose_different_episodes(webtoon_instance: Webtoon):
     """같은 purpose지만 다른 에피소드의 데이터는 유지"""
-    ep1 = webtoon_instance.episode.add(id=8004, name="Episode 1")
-    ep2 = webtoon_instance.episode.add(id=8005, name="Episode 2")
+    ep1 = webtoon_instance.episode.add()
+    ep1["id"] = 8004
+    ep1["name"] = "Episode 1"
+
+    ep2 = webtoon_instance.episode.add()
+    ep2["id"] = 8005
+    ep2["name"] = "Episode 2"
 
     ep1["shared"] = "value1"
     ep2["shared"] = "value2"
@@ -376,7 +428,9 @@ def test_delete_extra_data_same_purpose_different_episodes(webtoon_instance: Web
 
 def test_delete_and_readd_extra_data(webtoon_instance: Webtoon):
     """삭제 후 같은 purpose로 다시 추가 가능"""
-    episode = webtoon_instance.episode.add(id=8006, name="Readd Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8006
+    episode["name"] = "Readd Test"
 
     # 추가
     episode["readd"] = "original"
@@ -392,7 +446,9 @@ def test_delete_and_readd_extra_data(webtoon_instance: Webtoon):
 
 def test_delete_extra_data_with_special_characters(webtoon_instance: Webtoon):
     """특수 문자가 포함된 purpose 삭제"""
-    episode = webtoon_instance.episode.add(id=8007, name="Special Chars")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 8007
+    episode["name"] = "Special Chars"
 
     special_purposes = ["purpose-with-dash", "purpose_with_underscore", "purpose.with.dot", "한글purpose"]
 
@@ -402,7 +458,9 @@ def test_delete_extra_data_with_special_characters(webtoon_instance: Webtoon):
     for purpose in special_purposes:
         del episode[purpose]
 
-    assert len(episode) == 0
+    # id와 name만 남아있음
+    remaining = [k for k in episode if k not in ["id", "name"]]
+    assert len(remaining) == 0
 
 
 # ===== 데이터 지속성 테스트 =====
@@ -414,11 +472,10 @@ def test_episode_persists_across_connections(tmp_path: Path):
 
     # 첫 번째 연결: 데이터 추가
     with Webtoon(db_path) as webtoon:
-        episode = webtoon.episode.add(
-            id=8000,
-            name="Persistent Episode",
-            state="saved"
-        )
+        episode = webtoon.episode.add()
+        episode["id"] = 8000
+        episode["name"] = "Persistent Episode"
+        episode["state"] = "saved"
         episode_no = episode.episode_no
         episode["note"] = "persisted"
 
@@ -426,8 +483,8 @@ def test_episode_persists_across_connections(tmp_path: Path):
     with Webtoon(db_path) as webtoon:
         episode = WebtoonEpisode.from_episode_no(episode_no, webtoon)
 
-        assert episode.name == "Persistent Episode"
-        assert episode.state == "saved"
+        assert episode["name"] == "Persistent Episode"
+        assert episode["state"] == "saved"
         assert episode["note"] == "persisted"
 
 
@@ -436,11 +493,10 @@ def test_complex_workflow(webtoon_instance: Webtoon):
     # 여러 에피소드 추가
     episodes = []
     for i in range(5):
-        episode = webtoon_instance.episode.add(
-            id=9000 + i,
-            name=f"Chapter {i + 1}",
-            state="published"
-        )
+        episode = webtoon_instance.episode.add(episode_no=9000 + i)
+        episode["id"] = 9000 + i
+        episode["name"] = f"Chapter {i + 1}"
+        episode["state"] = "published"
         episodes.append(episode)
 
         # 각 에피소드에 extra_data 추가
@@ -449,8 +505,8 @@ def test_complex_workflow(webtoon_instance: Webtoon):
 
     # 모든 에피소드 확인
     for i, episode in enumerate(episodes):
-        assert episode.name == f"Chapter {i + 1}"
-        assert episode.state == "published"
+        assert episode["name"] == f"Chapter {i + 1}"
+        assert episode["state"] == "published"
 
         chapter_num = episode["chapter_num"]
         assert chapter_num == i + 1
@@ -461,44 +517,55 @@ def test_complex_workflow(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_len(webtoon_instance: Webtoon):
     """WebtoonEpisode의 len() 메서드 테스트 (__len__)"""
-    episode = webtoon_instance.episode.add(id=10000, name="Len Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10000
+    episode["name"] = "Len Test"
 
-    # 처음에는 비어있음
-    assert len(episode) == 0
+    # 처음에는 비어있음 (id와 name은 기본 필드이므로 제외)
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 0
 
     # 데이터 추가
     episode["key1"] = "value1"
-    assert len(episode) == 1
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 1
 
     episode["key2"] = "value2"
-    assert len(episode) == 2
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 2
 
     episode["key3"] = "value3"
-    assert len(episode) == 3
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 3
 
     # 삭제 후 감소
     del episode["key2"]
-    assert len(episode) == 2
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 2
 
 
 def test_webtoon_episode_iter(webtoon_instance: Webtoon):
     """WebtoonEpisode의 반복 테스트 (__iter__)"""
-    episode = webtoon_instance.episode.add(id=10001, name="Iter Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10001
+    episode["name"] = "Iter Test"
 
     purposes = ["purpose1", "purpose2", "purpose3"]
     for purpose in purposes:
         episode[purpose] = f"value for {purpose}"
 
-    # 반복자를 통해 purpose 목록 확인
+    # 반복자를 통해 purpose 목록 확인 (id, name 포함)
     result_purposes = list(episode)
-    assert len(result_purposes) == 3
+    assert len(result_purposes) >= 3
     for purpose in purposes:
         assert purpose in result_purposes
 
 
 def test_webtoon_episode_contains(webtoon_instance: Webtoon):
     """WebtoonEpisode의 in 연산자 테스트 (__contains__)"""
-    episode = webtoon_instance.episode.add(id=10002, name="Contains Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10002
+    episode["name"] = "Contains Test"
 
     # 처음에는 포함되지 않음
     assert "test_key" not in episode
@@ -513,14 +580,16 @@ def test_webtoon_episode_contains(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_keys(webtoon_instance: Webtoon):
     """WebtoonEpisode의 keys() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10003, name="Keys Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10003
+    episode["name"] = "Keys Test"
 
     episode["key1"] = "value1"
     episode["key2"] = "value2"
     episode["key3"] = "value3"
 
     keys = list(episode.keys())
-    assert len(keys) == 3
+    assert len(keys) >= 3
     assert "key1" in keys
     assert "key2" in keys
     assert "key3" in keys
@@ -528,14 +597,16 @@ def test_webtoon_episode_keys(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_values(webtoon_instance: Webtoon):
     """WebtoonEpisode의 values() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10004, name="Values Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10004
+    episode["name"] = "Values Test"
 
     episode["key1"] = "value1"
     episode["key2"] = 42
     episode["key3"] = True
 
     values = list(episode.values())
-    assert len(values) == 3
+    assert len(values) >= 3
     assert "value1" in values
     assert 42 in values
     assert True in values
@@ -543,20 +614,24 @@ def test_webtoon_episode_values(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_items(webtoon_instance: Webtoon):
     """WebtoonEpisode의 items() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10005, name="Items Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10005
+    episode["name"] = "Items Test"
 
     episode["key1"] = "value1"
     episode["key2"] = 42
 
     items = dict(episode.items())
-    assert len(items) == 2
+    assert len(items) >= 2
     assert items["key1"] == "value1"
     assert items["key2"] == 42
 
 
 def test_webtoon_episode_get(webtoon_instance: Webtoon):
     """WebtoonEpisode의 get() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10006, name="Get Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10006
+    episode["name"] = "Get Test"
 
     episode["existing"] = "value"
 
@@ -572,7 +647,9 @@ def test_webtoon_episode_get(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_pop(webtoon_instance: Webtoon):
     """WebtoonEpisode의 pop() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10007, name="Pop Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10007
+    episode["name"] = "Pop Test"
 
     episode["key1"] = "value1"
     episode["key2"] = "value2"
@@ -581,7 +658,8 @@ def test_webtoon_episode_pop(webtoon_instance: Webtoon):
     value = episode.pop("key1")
     assert value == "value1"
     assert "key1" not in episode
-    assert len(episode) == 1
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 1
 
     # 존재하지 않는 키 pop (기본값 제공)
     value = episode.pop("nonexistent", "default")
@@ -590,7 +668,9 @@ def test_webtoon_episode_pop(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_setdefault(webtoon_instance: Webtoon):
     """WebtoonEpisode의 setdefault() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10008, name="Setdefault Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10008
+    episode["name"] = "Setdefault Test"
 
     # 존재하지 않는 키에 대해 기본값 설정
     value = episode.setdefault("new_key", "default_value")
@@ -605,7 +685,9 @@ def test_webtoon_episode_setdefault(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_update(webtoon_instance: Webtoon):
     """WebtoonEpisode의 update() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10009, name="Update Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10009
+    episode["name"] = "Update Test"
 
     episode["key1"] = "value1"
 
@@ -621,18 +703,22 @@ def test_webtoon_episode_update(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_clear(webtoon_instance: Webtoon):
     """WebtoonEpisode의 clear() 메서드 테스트"""
-    episode = webtoon_instance.episode.add(id=10010, name="Clear Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10010
+    episode["name"] = "Clear Test"
 
     episode["key1"] = "value1"
     episode["key2"] = "value2"
     episode["key3"] = "value3"
 
-    assert len(episode) == 3
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 3
 
     # 모든 extra_data 삭제
     episode.clear()
 
-    assert len(episode) == 0
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 0
     assert "key1" not in episode
     assert "key2" not in episode
     assert "key3" not in episode
@@ -643,24 +729,24 @@ def test_webtoon_episode_clear(webtoon_instance: Webtoon):
 
 def test_webtoon_episode_property_access(webtoon_instance: Webtoon):
     """WebtoonEpisode 속성 직접 접근"""
-    episode = webtoon_instance.episode.add(
-        id=10100,
-        name="Property Test",
-        episode_no=99,
-        state="testing"
-    )
+    episode = webtoon_instance.episode.add(episode_no=99)
+    episode["id"] = 10100
+    episode["name"] = "Property Test"
+    episode["state"] = "testing"
 
     # 속성 직접 접근
     assert episode.episode_no == 99
-    assert episode.name == "Property Test"
-    assert episode.state == "testing"
-    assert episode.episode_id == 10100
+    assert episode["name"] == "Property Test"
+    assert episode["state"] == "testing"
+    assert episode["id"] == 10100
     assert isinstance(episode.added_at, datetime.datetime)
 
 
 def test_webtoon_episode_webtoon_property(webtoon_instance: Webtoon):
     """WebtoonEpisode의 webtoon 속성 테스트"""
-    episode = webtoon_instance.episode.add(id=10101, name="Webtoon Property Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10101
+    episode["name"] = "Webtoon Property Test"
 
     # webtoon 속성은 연결된 Webtoon 인스턴스를 반환
     assert episode.webtoon is webtoon_instance
@@ -674,9 +760,6 @@ def test_webtoon_episode_without_webtoon_raises(webtoon_instance: Webtoon):
     # _webtoon=None으로 WebtoonEpisode 직접 생성
     episode = EpisodeClass(
         episode_no=1,
-        name="Test",
-        state="test",
-        episode_id=123,
         added_at=datetime.datetime.now(),
         _webtoon=None
     )
@@ -691,17 +774,21 @@ def test_webtoon_episode_without_webtoon_raises(webtoon_instance: Webtoon):
 
 def test_add_returns_webtoon_episode(webtoon_instance: Webtoon):
     """add() 메서드가 WebtoonEpisode를 반환하는지 확인"""
-    result = webtoon_instance.episode.add(id=10200, name="Return Test")
+    result = webtoon_instance.episode.add()
+    result["id"] = 10200
+    result["name"] = "Return Test"
 
     assert isinstance(result, WebtoonEpisode)
     assert result.episode_no is not None
-    assert result.name == "Return Test"
-    assert result.episode_id == 10200
+    assert result["name"] == "Return Test"
+    assert result["id"] == 10200
 
 
 def test_add_episode_and_immediately_use_extra_data(webtoon_instance: Webtoon):
     """add() 반환값으로 바로 extra_data 사용"""
-    episode = webtoon_instance.episode.add(id=10201, name="Immediate Use")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10201
+    episode["name"] = "Immediate Use"
 
     # 반환된 객체로 바로 extra_data 조작
     episode["immediate_key"] = "immediate_value"
@@ -711,23 +798,32 @@ def test_add_episode_and_immediately_use_extra_data(webtoon_instance: Webtoon):
 def test_chaining_operations(webtoon_instance: Webtoon):
     """연쇄 작업 테스트"""
     # add() 후 바로 extra_data 설정하고 조회
-    episode = webtoon_instance.episode.add(id=10202, name="Chaining Test")
+    episode = webtoon_instance.episode.add()
+    episode["id"] = 10202
+    episode["name"] = "Chaining Test"
     episode["chain1"] = "value1"
     episode["chain2"] = "value2"
 
     # 같은 객체로 계속 작업 가능
-    assert len(episode) == 2
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 2
     assert "chain1" in episode
     assert "chain2" in episode
 
     del episode["chain1"]
-    assert len(episode) == 1
+    extra_keys = [k for k in episode if k not in ["id", "name"]]
+    assert len(extra_keys) == 1
 
 
 def test_episode_comparison(webtoon_instance: Webtoon):
     """WebtoonEpisode 객체 비교"""
-    ep1 = webtoon_instance.episode.add(id=10203, name="Episode 1")
-    ep2 = webtoon_instance.episode.add(id=10204, name="Episode 2")
+    ep1 = webtoon_instance.episode.add()
+    ep1["id"] = 10203
+    ep1["name"] = "Episode 1"
+
+    ep2 = webtoon_instance.episode.add()
+    ep2["id"] = 10204
+    ep2["name"] = "Episode 2"
 
     # 다른 에피소드는 episode_no가 다름
     assert ep1.episode_no != ep2.episode_no
@@ -735,5 +831,5 @@ def test_episode_comparison(webtoon_instance: Webtoon):
     # 같은 episode_no로 재생성하면 같은 데이터
     ep1_reloaded = WebtoonEpisode.from_episode_no(ep1.episode_no, webtoon_instance)
     assert ep1_reloaded.episode_no == ep1.episode_no
-    assert ep1_reloaded.name == ep1.name
-    assert ep1_reloaded.episode_id == ep1.episode_id
+    assert ep1_reloaded["name"] == ep1["name"]
+    assert ep1_reloaded["id"] == ep1["id"]

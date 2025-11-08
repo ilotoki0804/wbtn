@@ -282,11 +282,12 @@ def test_all_tables_created(tmp_path: Path):
         ).fetchall()
         table_names = {t[0] for t in tables}
 
-        assert "info" in table_names
-        assert "episodes" in table_names
-        assert "episodes_extra" in table_names
-        assert "media" in table_names
-        assert "extra_files" in table_names
+        assert "Info" in table_names
+        assert "Episode" in table_names
+        assert "EpisodeInfo" in table_names
+        assert "Content" in table_names
+        assert "ContentInfo" in table_names
+        assert "ExtraFile" in table_names
 
 
 def test_system_info_initialized(tmp_path: Path):
@@ -526,4 +527,3 @@ def test_user_version_bypass_integrity_check_sets_version(tmp_path: Path):
     with Webtoon(db_path, connection_settings=settings) as webtoon:
         # 버전이 현재 버전으로 강제 설정됨
         assert webtoon.connection.file_user_version == SCHEMA_VERSION
-

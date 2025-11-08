@@ -34,8 +34,10 @@ class WebtoonValue:
             query = self._get_query(conversion, cast_primitive=True)
         return conversion, query, self._dump(value)
 
-    def get_primitive_conversion(self, value) -> ConversionType | None:
-        return self._get_conversion(value, primitive_conversion=True)
+    def get_primitive_conversion(self, value) -> ConversionType:
+        result = self._get_conversion(value, primitive_conversion=True)
+        assert result is not None  # TODO: _get_conversion에 overload 추가하고 이 assert 제거하기
+        return result
 
     def dump_bytes(self, value: ValueType) -> bytes:
         value = self._dump_str_bytes(value)

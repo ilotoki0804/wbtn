@@ -131,9 +131,13 @@ class WebtoonPathManager:
         raise NotImplementedError()
         return (old_base_path / path).relative_to(current_base_path or self.base_path)
 
-    def initialize_base_path(self, path: Path | None = None) -> Path:
+    def initialize_base_path(self, path: Path | None = None, suggest: bool = False) -> Path:
+        """suggest가 참인 경우 webtoon 파일에 base path 경로 데이터를 저장합니다."""
         # path가 직접 제공된 경우 별도의 체크 없이 바로 초기화되니 꼭!!! 안전한 값만 path로 제공해야 함
         self._base_path = self._get_base_path(path).resolve()
+        if path and suggest:
+            file_folder = self.file_base_path()
+            self.webtoon.info.set("sys_base_directory", str(path.resolve().relative_to(file_folder)), system=True)
         return self._base_path
 
     @property

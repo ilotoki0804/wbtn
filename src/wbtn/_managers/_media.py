@@ -6,8 +6,8 @@ import typing
 from pathlib import Path
 
 from .._base import (
+    GET_VALUE,
     ConversionType,
-    EpisodeState,
     PrimitiveType,
     ValueType,
     fromtimestamp,
@@ -17,10 +17,10 @@ from ._episode import WebtoonEpisode
 from .._json_data import JsonData
 from .._base import WebtoonType
 
-__all__ = ("WebtoonMediaManger", "WebtoonMediaData", "WebtoonMedia")
+__all__ = ("WebtoonContentManger", "WebtoonContentData", "WebtoonContent")
 
 
-class WebtoonMediaManger:
+class WebtoonContentManger:
     __slots__ = "webtoon",
 
     def __init__(self, webtoon: WebtoonType):
@@ -28,187 +28,148 @@ class WebtoonMediaManger:
 
     def add_path_or_data(
         self,
-        path: Path,
-        data: PrimitiveType | JsonData,
         episode: WebtoonEpisode,
-        media_no: int,
-        purpose: str,
-        conversion: ConversionType | None = None,
+        content_no: int,
+        kind: str,
         *,
-        state: EpisodeState = None,
-        media_type: str | None = None,
-        media_name: str | None = None,
+        data: ValueType,
+        conversion: ConversionType | None = None,
+        path: Path,
         mkdir: bool = True,
-    ) -> WebtoonMedia:
+    ) -> WebtoonContent:
         if self.webtoon.path.self_contained:
             return self.add(
-                data,
-                episode=episode,
-                media_no=media_no,
-                purpose=purpose,
-                state=state,
-                media_type=media_type,
-                media_name=media_name,
+                episode,
+                content_no,
+                kind,
+                data=data,
+                conversion=conversion,
             )
         else:
             if mkdir:
                 path.parent.mkdir(parents=True, exist_ok=True)
+            conversion = conversion or self.webtoon.value.get_primitive_conversion(data)
+            result = self.add(
+                episode,
+                content_no,
+                kind,
+                conversion=conversion,
+                path=path,
+            )
             path.write_bytes(self.webtoon.value.dump_bytes(data))
-            try:
-                result = self.add(
-                    path,
-                    episode=episode,
-                    media_no=media_no,
-                    purpose=purpose,
-                    conversion=conversion or self.webtoon.value.get_primitive_conversion(data),
-                    state=state,
-                    media_type=media_type,
-                    media_name=media_name,
-                )
-            except BaseException:
-                path.unlink()
-                raise
-            else:
-                return result
+            return result
 
     @typing.overload
-    def add(  # NOTE: WebtoonMedia를 값으로 받도록 하는 것도 좋을 수 있을 것 같다
+    def add(
         self,
+        episode: WebtoonEpisode,
+        content_no: int,
+        kind: str,
+        *,
+        conversion: ConversionType,
         path: Path,
-        /,
-        episode: WebtoonEpisode,
-        media_no: int,
-        purpose: str,
-        conversion: ConversionType | None = None,
-        *,
-        state: EpisodeState = None,
-        media_type: str | None = None,
-        media_name: str | None = None,
-    ) -> WebtoonMedia: ...
+    ) -> WebtoonContent: ...
     @typing.overload
     def add(
         self,
-        data: PrimitiveType | JsonData,
-        /,
         episode: WebtoonEpisode,
-        media_no: int,
-        purpose: str,
+        content_no: int,
+        kind: str,
         *,
-        state: EpisodeState = None,
-        media_type: str | None = None,
-        media_name: str | None = None,
-    ) -> WebtoonMedia: ...
+        data: ValueType | None = None,
+        conversion: ConversionType | None = None,
+    ) -> WebtoonContent: ...
+    # media_no: '한 컷'을 의미하고, image 외에 comment, styles, meta 등 다양한 정보를 포함시킬 수 있다.
+    # kind: image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
     def add(
         self,
-        path_or_data: Path | PrimitiveType | JsonData,
-        /,
         episode: WebtoonEpisode,
-        # number는 '한 컷'을 의미하고, image 외에 comment, styles, meta 등 다양한 정보를 포함시킬 수 있다.
-        media_no: int,
-        # image, text 등 실제 구성 요소와 thumbnail, comment, styles, meta 등 실제 구성 요소는 아닌 데이터가 혼합되어 있을 수 있다.
-        purpose: str,
-        conversion: ConversionType | None | None = None,
+        content_no: int,
+        kind: str,
         *,
-        state: EpisodeState = None,
-        media_type: str | None = None,
-        media_name: str | None = None,
-    ) -> WebtoonMedia:
-        with self.webtoon.connection.cursor() as cur:
-            if isinstance(path_or_data, Path):
-                path = self.webtoon.path.dump(path_or_data)
-                data = None
-            else:
-                path = None
-                data = path_or_data
-                if conversion:
-                    raise ValueError("conversion cannot be provided directly through conversion parameter.")
+        data: ValueType | None = None,
+        conversion: ConversionType | None = None,
+        path: Path | None = None,
+    ) -> WebtoonContent:
+        if path:
+            if conversion is None:
+                raise ValueError("Conversion must be provided with path.")
+            if data is not None:
+                raise ValueError("Data and path must not be given at the same time.")
 
-            conversion, query, data = self.webtoon.value.dump_conversion_query_value(data, conversion, primitive_conversion=True)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(data, conversion, primitive_conversion=True)
+        path_str = self.webtoon.path.dump(path)
+        content_id, = self.webtoon.execute(
+            f"""INSERT INTO Content (
+                episode_no,
+                content_no,
+                kind,
+                value,
+                conversion,
+                path,
+                added_at
+            ) VALUES (?, ?, ?, {query}, ?, ?, ?) RETURNING content_id""",
+            (episode.episode_no, content_no, kind, value, conversion, path_str, timestamp())
+        )
+        return WebtoonContent.from_content_id(content_id, self.webtoon)
 
-            current_time = timestamp()
-            media_id, = cur.execute(
-                f"""INSERT INTO media (
-                    episode_no,
-                    media_no,
-                    purpose,
-                    state,
-                    media_type,
-                    name,
-                    conversion,
-                    path,
-                    data,
-                    added_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, {query}, ?) RETURNING id""",
-                (episode.episode_no, media_no, purpose, state, media_type, media_name, conversion, path, data, current_time)
-            ).fetchone()
-            return WebtoonMedia.from_media_id(media_id, self.webtoon)
-
-    def remove(self, media: WebtoonMedia) -> None:
-        result = self.webtoon.execute("DELETE FROM media WHERE id == ? RETURNING TRUE", (media.media_id(),))
+    def remove(self, content: WebtoonContent) -> None:
+        result = self.webtoon.execute("DELETE FROM Content WHERE content_id == ? RETURNING TRUE", (content.content_id(),))
         if result is None:
-            raise KeyError(media)
+            raise KeyError(content)
 
-    def set(self, media: WebtoonMediaData) -> None:
+    def set(self, content: WebtoonContentData) -> None:
         # path가 있으면 conversion도 있어야 함
-        if media.path is not None and media.conversion is None:
+        if content.path is not None and content.conversion is None:
             raise ValueError("conversion is required when path is provided.")
-        if media.path is not None and media.data is not None:
+        if content.path is not None and content.data is not None:
             raise ValueError("Only data or path should be provided.")
 
-        conversion, query, data = self.webtoon.value.dump_conversion_query_value(media.data, primitive_conversion=True)
+        conversion, query, value = self.webtoon.value.dump_conversion_query_value(content.data, primitive_conversion=True)
         result = self.webtoon.execute(f"""
-            UPDATE media
+            UPDATE Content
             SET
                 episode_no = ?,
-                media_no = ?,
-                purpose = ?,
-                state = ?,
-                media_type = ?,
-                name = ?,
+                content_no = ?,
+                kind = ?,
+                value = {query},
                 conversion = ?,
                 path = ?,
-                data = {query},
                 added_at = ?
-            WHERE id == ?
+            WHERE content_id == ?
             RETURNING TRUE
         """, (
-            media.episode_no,
-            media.media_no,
-            media.purpose,
-            media.state,
-            media.media_type,
-            media.name,
-            media.conversion or conversion,
-            self.webtoon.path.dump(media.path),
-            data,
-            media.added_at.timestamp(),
-            media.media_id,
+            content.episode_no,
+            content.content_no,
+            content.kind,
+            value,
+            content.conversion or conversion,
+            self.webtoon.path.dump(content.path),
+            content.added_at.timestamp(),
+            content.content_id,
         ))
         if result is None:
-            raise KeyError(media)
+            raise KeyError(content)
 
-    def _load(self, media_id: int) -> WebtoonMediaData:
+    def _load(self, content_id: int) -> WebtoonContentData:
         result = self.webtoon.execute(
-            """
-            SELECT id, episode_no, media_no, purpose, state, media_type, name, conversion, path, data, added_at
-            FROM media
-            WHERE id == ?
+            f"""
+            SELECT content_id, episode_no, content_no, kind, {GET_VALUE}, conversion, path, added_at
+            FROM Content
+            WHERE content_id == ?
             """,
-            (media_id,)
+            (content_id,)
         )
         if result is None:
-            raise ValueError(f"Can't find media that have media_id == {media_id}.")
-        media_id, episode_no, media_no, purpose, state, media_type, name, conversion, path, data, added_at = result
-        return WebtoonMediaData(
-            media_id=media_id,
+            raise ValueError(f"Can't find content that have content_id == {content_id}.")
+        content_id, episode_no, content_no, kind, data, conversion, path, added_at = result
+        return WebtoonContentData(
+            content_id=content_id,
             episode_no=episode_no,
-            media_no=media_no,
-            purpose=purpose,
-            state=state,
-            media_type=media_type,
-            name=name,
+            content_no=content_no,
+            kind=kind,
             conversion=conversion,
-            path=path and self.webtoon.path.load(path),
+            path=self.webtoon.path.load(path),
             data=self.webtoon.value.load(conversion, data),
             added_at=fromtimestamp(added_at),
         )
@@ -216,22 +177,21 @@ class WebtoonMediaManger:
     def iterate(
         self,
         episode: WebtoonEpisode | None,
-        purpose: str | None = None,
-        state: EpisodeState = None,
-    ) -> typing.Iterator[WebtoonMedia]:
-        with self.webtoon.connection.cursor() as cur:
-            for media_id, in cur.execute(
-                """
-                SELECT id
-                FROM media
-                WHERE (?1 IS NULL OR episode_no == ?1) AND (?2 IS NULL OR purpose == ?2) AND (?3 IS NULL OR state == ?3)
-                """,
-                (episode.episode_no if episode else None, purpose, state)
-            ):
-                yield WebtoonMedia.from_media_id(media_id, self.webtoon)
+        kind: str | None = None,
+    ) -> typing.Iterator[WebtoonContent]:
+        with self.webtoon.execute_with(
+            """
+            SELECT content_id
+            FROM Content
+            WHERE (?1 IS NULL OR episode_no == ?1) AND (?2 IS NULL OR kind == ?2)
+            """,
+            (episode.episode_no if episode else None, kind)
+        ) as cur:
+            for content_id, in cur:
+                yield WebtoonContent.from_content_id(content_id, self.webtoon)
 
-    def load_data(self, media: WebtoonMedia, store_data: bool = False) -> ValueType:
-        data = media.load()
+    def load_data(self, content: WebtoonContent, store_data: bool = False) -> ValueType:
+        data = content.load()
         if data.path is None:
             return data.data
         result = self.webtoon.value.load_bytes(data.conversion, data.path.read_bytes())
@@ -242,8 +202,8 @@ class WebtoonMediaManger:
             self.set(data)
         return result
 
-    def dump_path(self, media: WebtoonMedia, path: Path, *, replace_path: bool = False):
-        data = media.load()
+    def dump_path(self, content: WebtoonContent, path: Path, *, replace_path: bool = False):
+        data = content.load()
         if data.path is not None:
             return data.path
         else:
@@ -259,65 +219,62 @@ class WebtoonMediaManger:
 
 
 @dataclass(slots=True)
-class WebtoonMediaData:
-    media_id: int
+class WebtoonContentData:
+    content_id: int
     episode_no: int
-    media_no: int
-    purpose: str | None
-    media_type: str
-    name: str
-    state: EpisodeState
+    content_no: int
+    kind: str | None
+    data: ValueType
     conversion: ConversionType | None
     path: Path | None
-    data: ValueType
     added_at: datetime.datetime
     _webtoon: WebtoonType | None = None
 
 
-class WebtoonMedia:
+class WebtoonContent:
     @typing.overload
-    def __init__(self, *, media_id: int, webtoon: WebtoonType) -> None: ...
+    def __init__(self, *, content_id: int, webtoon: WebtoonType) -> None: ...
     @typing.overload
-    def __init__(self, *, media: WebtoonMediaData) -> None: ...
-    def __init__(self, *, media_id: int | None = None, webtoon: WebtoonType | None = None, media: WebtoonMediaData | None = None) -> None:
-        if not (media is None) ^ (media_id is None):
-            raise ValueError("Only one of media or media_id and webtoon can be provided.")
-        if media is None and (media_id is None) ^ (webtoon is None):
-            raise ValueError("media_id must be provided with webtoon.")
-        self._media_id = media_id
+    def __init__(self, *, content: WebtoonContentData) -> None: ...
+    def __init__(self, *, content_id: int | None = None, webtoon: WebtoonType | None = None, content: WebtoonContentData | None = None) -> None:
+        if not (content is None) ^ (content_id is None):
+            raise ValueError("Only one of content or content_id and webtoon can be provided.")
+        if content is None and (content_id is None) ^ (webtoon is None):
+            raise ValueError("content_id must be provided with webtoon.")
+        self._content_id = content_id
         self._webtoon = webtoon
-        self._media = media
+        self._content = content
 
     @classmethod
-    def from_media_id(cls, media_id: int, webtoon: WebtoonType) -> typing.Self:
-        return cls(media_id=media_id, webtoon=webtoon)
+    def from_content_id(cls, content_id: int, webtoon: WebtoonType) -> typing.Self:
+        return cls(content_id=content_id, webtoon=webtoon)
 
     @classmethod
-    def from_media(cls, media: WebtoonMediaData) -> typing.Self:
-        return cls(media=media)
+    def from_content(cls, content: WebtoonContentData) -> typing.Self:
+        return cls(content=content)
 
-    def load(self, store_media: bool = False) -> WebtoonMediaData:
-        if self._media_id is None:
-            return self._media  # type: ignore
+    def load(self, store_content: bool = False) -> WebtoonContentData:
+        if self._content_id is None:
+            return self._content  # type: ignore
         else:
-            media = self._webtoon.media._load(self._media_id)  # type: ignore
-            if store_media:
-                self._media_id, self._media = None, media
+            media = self._webtoon.content._load(self._content_id)  # type: ignore
+            if store_content:
+                self._content_id, self._content = None, media
             return media
 
-    def media_id(self, store_id: bool = False) -> int:
-        if self._media_id is None:
-            media_id = self._media.media_id  # type: ignore
+    def content_id(self, store_id: bool = False) -> int:
+        if self._content_id is None:
+            content_id = self._content.content_id  # type: ignore
             if store_id:
-                self._media_id, self._media = media_id, None
-            return media_id
+                self._content_id, self._content = content_id, None
+            return content_id
         else:
-            return self._media_id
+            return self._content_id
 
     @property
     def loaded(self) -> bool:
-        return self._media_id is None
+        return self._content_id is None
 
     @property
-    def stored(self) -> int | WebtoonMediaData:
-        return self._media if self._media_id is None else self._media_id  # type: ignore
+    def stored(self) -> int | WebtoonContentData:
+        return self._content if self._content_id is None else self._content_id  # type: ignore

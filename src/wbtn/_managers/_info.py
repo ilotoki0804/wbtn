@@ -3,11 +3,10 @@ from __future__ import annotations
 import sqlite3
 import typing
 
-from .._base import ValueType, ConversionType
+from .._base import ValueType, ConversionType, GET_VALUE
 from .._base import WebtoonType
 
 _NOTSET = object()
-GET_VALUE: typing.LiteralString = "CASE conversion WHEN 'jsonb' THEN json(value) WHEN 'json' THEN json(value) ELSE value END"
 
 __all__ = ("WebtoonInfoManager",)
 
@@ -19,13 +18,12 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
         self.webtoon = webtoon
 
     def __iter__(self) -> typing.Iterator[str]:
-        with self.webtoon.connection.cursor() as cur:
-            for result, in cur.execute("SELECT name FROM info"):
+        with self.webtoon.execute_with("SELECT name FROM Info") as cur:
+            for result, in cur:
                 yield result
 
     def __len__(self) -> int:
-        with self.webtoon.connection.cursor() as cur:
-            count, = cur.execute("SELECT count() FROM info").fetchone()
+        count, = self.webtoon.execute("SELECT count() FROM Info")
         return count
 
     def __getitem__(self, key: str) -> ValueType:
@@ -37,11 +35,10 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
     def __delitem__(self, key: str) -> None:
         return self.delete(key)
 
-    def pop(self, key: str, default=_NOTSET, delete_system: bool = False) -> typing.Any:
-        if not delete_system:
+    def pop(self, key: str, default=_NOTSET, system: bool = False) -> typing.Any:
+        if not system:
             self._protect_system_key(key)
-        with self.webtoon.connection.cursor() as cur:
-            result = cur.execute(f"DELETE FROM info WHERE name == ? RETURNING conversion, {GET_VALUE}", (key,)).fetchone()
+        result = self.webtoon.execute(f"DELETE FROM Info WHERE name == ? RETURNING conversion, {GET_VALUE}", (key,))
         if result is None:
             if default is _NOTSET:
                 raise KeyError(key)
@@ -52,36 +49,32 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
         return value
 
     def items(self) -> typing.Iterator[tuple[str, ValueType]]:
-        with self.webtoon.connection.cursor() as cur:
-            for name, conversion, value in cur.execute(f"SELECT name, conversion, {GET_VALUE} FROM info"):
+        with self.webtoon.execute_with(f"SELECT name, conversion, {GET_VALUE} FROM Info") as cur:
+            for name, conversion, value in cur:
                 value = self.webtoon.value.load(conversion, value)
                 yield name, value
 
     def values(self) -> typing.Iterator[ValueType]:
-        with self.webtoon.connection.cursor() as cur:
-            for conversion, value in cur.execute(f"SELECT conversion, {GET_VALUE} FROM info"):
+        with self.webtoon.execute_with(f"SELECT conversion, {GET_VALUE} FROM Info") as cur:
+            for conversion, value in cur:
                 value = self.webtoon.value.load(conversion, value)
                 yield value
 
-    def clear(self, delete_system: bool = False) -> None:
-        with self.webtoon.connection.cursor() as cur:
-            if delete_system:
-                cur.execute("DELETE FROM info")
-            else:
-                cur.execute("DELETE FROM info WHERE name NOT LIKE 'sys\\_%' ESCAPE '\\'")
+    def clear(self, system: bool = False) -> None:
+        if system:
+            self.webtoon.execute("DELETE FROM Info")
+        else:
+            self.webtoon.execute("DELETE FROM Info WHERE name NOT LIKE 'sys\\_%' ESCAPE '\\'")
 
-    def delete(self, key: str, delete_system: bool = False):
-        if not delete_system:
+    def delete(self, key: str, system: bool = False):
+        if not system:
             self._protect_system_key(key)
-        with self.webtoon.connection.cursor() as cur:
-            result = cur.execute("DELETE FROM info WHERE name == ? RETURNING 1", (key,)).fetchone()
-            if result is None:
-                raise KeyError(key)
+        result = self.webtoon.execute("DELETE FROM Info WHERE name == ? RETURNING 1", (key,))
+        if result is None:
+            raise KeyError(key)
 
     def get(self, name: str, default=None) -> ValueType:
-        # with nullcontext(_cursor) if _cursor is not None else self.webtoon.connection.cursor() as cur:
-        with self.webtoon.connection.cursor() as cur:
-            result = cur.execute(f"SELECT conversion, {GET_VALUE} FROM info WHERE name == ?", (name,)).fetchone()
+        result = self.webtoon.execute(f"SELECT conversion, {GET_VALUE} FROM Info WHERE name == ?", (name,))
         if result is None:
             if default is _NOTSET:
                 raise KeyError(name)
@@ -91,22 +84,21 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
         value = self.webtoon.value.load(conversion, value)
         return value
 
-    def set(self, name: str, value: ValueType) -> None:
+    def set(self, name: str, value: ValueType, system: bool = False) -> None:
+        if not system:
+            self._protect_system_key(name)
         conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=False)
-        with self.webtoon.connection.cursor() as cur:
-            cur.execute(f"INSERT OR REPLACE INTO info VALUES (?, ?, {query})", (name, conversion, value))
+        self.webtoon.execute(f"INSERT OR REPLACE INTO Info VALUES (?, ?, {query})", (name, conversion, value))
 
     def setdefault(self, name: str, value: ValueType) -> None:
         conversion, query, value = self.webtoon.value.dump_conversion_query_value(value, primitive_conversion=False)
-        with self.webtoon.connection.cursor() as cur:
-            try:
-                cur.execute(f"INSERT INTO info VALUES (?, ?, {query})", (name, conversion, value))
-            except sqlite3.IntegrityError:  # 이미 값이 있을 경우
-                pass
+        try:
+            self.webtoon.execute(f"INSERT INTO Info VALUES (?, ?, {query})", (name, conversion, value))
+        except sqlite3.IntegrityError:  # 이미 값이 있을 경우
+            pass
 
     def get_conversion(self, name: str) -> ConversionType | None:
-        with self.webtoon.connection.cursor() as cur:
-            result = cur.execute("SELECT conversion FROM info WHERE name == ?", (name,)).fetchone()
+        result = self.webtoon.execute("SELECT conversion FROM Info WHERE name == ?", (name,))
         if result is None:
             raise KeyError(name)
         conversion, = result
@@ -115,4 +107,4 @@ class WebtoonInfoManager(typing.MutableMapping[str, ValueType]):
     @staticmethod
     def _protect_system_key(key: str):
         if key.startswith("sys_"):
-            raise KeyError(f"Cannot delete info {key!r} since it's system key. Set delete_system=True to delete the key.")
+            raise KeyError(f"Cannot modify or delete system information {key!r}. Set system=True to modify the key.")

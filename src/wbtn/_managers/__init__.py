@@ -14,9 +14,9 @@ __all__ = (
     'WebtoonEpisodeManager',
     'WebtoonExtraFileManager',
     'WebtoonInfoManager',
-    'WebtoonMedia',
-    'WebtoonMediaData',
-    'WebtoonMediaManger',
+    'WebtoonContent',
+    'WebtoonContentData',
+    'WebtoonContentManger',
     'WebtoonPathManager',
     'WebtoonValue',
 )
